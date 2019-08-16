@@ -39,6 +39,8 @@ use std::{fs, ptr, slice};
 use librocksdb_sys::crocksdb_delete;
 use util::is_power_of_two;
 
+pub const DEFAULT_TIMESTAMP_SIZE: usize = 8;
+
 pub struct CFHandle {
     inner: *mut DBCFHandle,
 }
@@ -1588,9 +1590,9 @@ impl WriteBatch {
         }
     }
 
-    pub fn with_timestamp(cap: usize, timestamp_size: usize) -> WriteBatch {
+    pub fn with_timestamp(cap: usize) -> WriteBatch {
         WriteBatch {
-            inner: unsafe { crocksdb_ffi::crocksdb_writebatch_create_with_capacity(cap, timestamp_size) },
+            inner: unsafe { crocksdb_ffi::crocksdb_writebatch_create_with_capacity(cap, DEFAULT_TIMESTAMP_SIZE) },
             timestamps: vec![],
         }
     }
@@ -2283,10 +2285,10 @@ mod test {
 
     #[test]
     fn test_user_timestamp() {
-        let path = TempDir::new("_rust_rocksdb_externaltest").expect("");
+        let path = TempDir::new("_rust_user_timestamp").expect("");
         let mut db = DB::open_default(path.path().to_str().unwrap()).unwrap();
         let mut cfd_option = ColumnFamilyOptions::default();
-        cfd_option.set_timestamp_comparator(8);
+        cfd_option.set_timestamp_comparator(DEFAULT_TIMESTAMP_SIZE);
         // cfd_option.set_timestamp
         db.create_cf_opt("cf", cfd_option).unwrap();
 
@@ -2294,7 +2296,7 @@ mod test {
         db.put_cf_with_ts(cf_handle, b"aaaa", b"v1", 1).unwrap();
         db.put_cf_with_ts(cf_handle, b"abcd", b"v1", 1).unwrap();
         db.put_cf_with_ts(cf_handle, b"abcd", b"v2", 3).unwrap();
-        let write_batch = WriteBatch::with_timestamp(1024, 8);
+        let write_batch = WriteBatch::with_timestamp(1024);
         write_batch.put_cf(cf_handle, b"abcd", b"v3").unwrap();
         write_batch.put_cf(cf_handle, b"aaaa", b"v3").unwrap();
         write_batch.put_cf(cf_handle, b"bbbb", b"v3").unwrap();

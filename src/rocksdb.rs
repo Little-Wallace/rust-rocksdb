@@ -2286,13 +2286,21 @@ mod test {
     #[test]
     fn test_user_timestamp() {
         let path = TempDir::new("_rust_user_timestamp").expect("");
-        let mut db = DB::open_default(path.path().to_str().unwrap()).unwrap();
+        let mut opts = DBOptions::new();
+        opts.create_if_missing(true);
+        opts.set_user_timestamp_comparator(DEFAULT_TIMESTAMP_SIZE);
+        let mut db = DB::open(opts, path.path().to_str().unwrap()).unwrap();
         let mut cfd_option = ColumnFamilyOptions::default();
         cfd_option.set_timestamp_comparator(DEFAULT_TIMESTAMP_SIZE);
         // cfd_option.set_timestamp
         db.create_cf_opt("cf", cfd_option).unwrap();
 
         let cf_handle = db.cf_handle("cf").unwrap();
+        let mut opt = WriteOptions::new();
+        opt.set_timestamp(1);
+        db.put_opt(b"bbbb", b"v1", &opt).unwrap();
+        opt.set_timestamp(2);
+        db.put_opt(b"bbbb", b"v2", &opt).unwrap();
         db.put_cf_with_ts(cf_handle, b"aaaa", b"v1", 1).unwrap();
         db.put_cf_with_ts(cf_handle, b"abcd", b"v1", 1).unwrap();
         db.put_cf_with_ts(cf_handle, b"abcd", b"v2", 3).unwrap();
@@ -2305,6 +2313,10 @@ mod test {
             println!("Error: {}", e);
         }
         let snap = db.snapshot();
+        let mut read_opt = ReadOptions::new();
+        read_opt.set_timestamp(1);
+        let v1 = db.get_opt(b"bbbb",&read_opt).unwrap();
+        assert_eq!(v1.unwrap().to_utf8().unwrap(), "v1");
         let v1 = snap.get_cf_with_ts(cf_handle, b"abcd", 1).unwrap();
         assert_eq!(v1.unwrap().to_utf8().unwrap(), "v1");
         let v2 = snap.get_cf_with_ts(cf_handle, b"abcd", 4).unwrap();

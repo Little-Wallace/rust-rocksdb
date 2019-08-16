@@ -740,6 +740,12 @@ impl DBOptions {
         }
     }
 
+    pub fn set_user_timestamp_comparator(&mut self, timestamp_size: usize) {
+        unsafe {
+            crocksdb_ffi::crocksdb_options_set_timestamp_comparator(self.inner, timestamp_size);
+        }
+    }
+
     //    pub fn set_delayed_write_rate(&mut self, rate: u64) {
     //        unsafe {
     //            crocksdb_ffi::crocksdb_options_set_delayed_write_rate(self.inner, rate);

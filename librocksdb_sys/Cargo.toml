@@ -7,7 +7,6 @@ links = "rocksdb"
 
 [dependencies]
 libc = "0.2.11"
-libtitan_sys = { path = "libtitan_sys" }
 
 [dev-dependencies]
 tempdir = "0.3"
@@ -17,8 +16,8 @@ default = []
 jemalloc = ["jemalloc-sys"]
 # portable doesn't require static link, though it's meaningless
 # when not using with static-link right now in this crate.
-portable = ["libtitan_sys/portable"]
-sse = ["libtitan_sys/sse"]
+portable = []
+sse = []
 
 [build-dependencies]
 cc = "1.0.3"

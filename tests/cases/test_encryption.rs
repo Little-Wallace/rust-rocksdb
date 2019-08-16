@@ -16,24 +16,24 @@ use rocksdb::{DBOptions, Writable, DB};
 use std::sync::Arc;
 use tempdir::TempDir;
 
-#[test]
-fn test_ctr_encrypted_env() {
-    let test_cipher_texts: &[&[u8]] = &[
-        &[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
-        &[8, 7, 6, 5, 4, 3, 2, 1],
-    ];
-    for ciphertext in test_cipher_texts {
-        let base_env = Arc::new(Env::new_mem());
-        test_ctr_encrypted_env_impl(Arc::new(
-            Env::new_ctr_encrypted_env(Arc::clone(&base_env), ciphertext).unwrap(),
-        ));
-    }
-    for ciphertext in test_cipher_texts {
-        test_ctr_encrypted_env_impl(Arc::new(
-            Env::new_default_ctr_encrypted_env(ciphertext).unwrap(),
-        ));
-    }
-}
+//#[test]
+//fn test_ctr_encrypted_env() {
+//    let test_cipher_texts: &[&[u8]] = &[
+//        &[16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+//        &[8, 7, 6, 5, 4, 3, 2, 1],
+//    ];
+//    for ciphertext in test_cipher_texts {
+//        let base_env = Arc::new(Env::new_mem());
+//        test_ctr_encrypted_env_impl(Arc::new(
+//            Env::new_ctr_encrypted_env(Arc::clone(&base_env), ciphertext).unwrap(),
+//        ));
+//    }
+//    for ciphertext in test_cipher_texts {
+//        test_ctr_encrypted_env_impl(Arc::new(
+//            Env::new_default_ctr_encrypted_env(ciphertext).unwrap(),
+//        ));
+//    }
+//}
 
 fn test_ctr_encrypted_env_impl(encrypted_env: Arc<Env>) {
     let path = TempDir::new("_rust_rocksdb_cryption_env").expect("");

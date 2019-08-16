@@ -90,7 +90,7 @@ fn custom_merge() {
     let mut cf_opts = ColumnFamilyOptions::new();
     cf_opts.add_merge_operator("test operator", concat_merge);
     {
-        let db = DB::open_cf(opts, path, vec![("default", cf_opts)]).unwrap();
+        let db = DB::open_cf(opts, path, vec![("default".to_string(), cf_opts)]).unwrap();
         db.put(b"k1", b"a").unwrap();
         db.merge(b"k1", b"b").unwrap();
         db.merge(b"k1", b"c").unwrap();
@@ -149,11 +149,11 @@ mod tests {
         opts.set_max_background_jobs(4);
         cf_opts.set_report_bg_io_stats(true);
         opts.set_wal_recovery_mode(DBRecoveryMode::PointInTime);
-        opts.enable_statistics(true);
-        opts.set_stats_dump_period_sec(60);
+        //        opts.enable_statistics(true);
+        //        opts.set_stats_dump_period_sec(60);
         cf_opts.compression_per_level(&per_level_compression);
         blockopts.set_block_size(524288);
-        blockopts.set_no_block_cache(true);
+        // blockopts.set_no_block_cache(true);
         blockopts.set_cache_index_and_filter_blocks(true);
         blockopts.set_bloom_filter(10, false);
         cf_opts.set_block_based_table_factory(blockopts);
@@ -163,7 +163,7 @@ mod tests {
         // let filter = new_bloom_filter(10);
         // opts.set_filter(filter);
 
-        DB::open_cf(opts, path, vec![("default", cf_opts)]).unwrap()
+        DB::open_cf(opts, path, vec![("default".to_string(), cf_opts)]).unwrap()
     }
 
     // TODO(tyler) unstable

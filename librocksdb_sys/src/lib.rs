@@ -37,6 +37,7 @@ pub enum DBIterator {}
 pub enum DBCFHandle {}
 pub enum DBWriteBatch {}
 pub enum DBComparator {}
+pub enum DBTimestampComparator {}
 pub enum DBFlushOptions {}
 pub enum DBCompactionFilter {}
 pub enum EnvOptions {}
@@ -83,17 +84,6 @@ pub enum WriteStallCondition {
 
 mod generated;
 pub use generated::*;
-
-pub enum DBTitanDBOptions {}
-pub enum DBTitanReadOptions {}
-
-#[derive(Clone, Debug, Default)]
-#[repr(C)]
-pub struct DBTitanBlobIndex {
-    pub file_number: u64,
-    pub blob_offset: u64,
-    pub blob_size: u64,
-}
 
 pub fn new_bloom_filter(bits: c_int) -> *mut DBFilterPolicy {
     unsafe { crocksdb_filterpolicy_create_bloom(bits) }
@@ -271,14 +261,6 @@ pub enum DBRateLimiterMode {
     ReadOnly = 1,
     WriteOnly = 2,
     AllIo = 3,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(C)]
-pub enum DBTitanDBBlobRunMode {
-    Normal = 0,
-    ReadOnly = 1,
-    Fallback = 2,
 }
 
 pub fn error_message(ptr: *mut c_char) -> String {
@@ -525,8 +507,8 @@ extern "C" {
     pub fn crocksdb_options_get_num_levels(options: *mut Options) -> c_int;
     pub fn crocksdb_options_set_db_log_dir(options: *mut Options, path: *const c_char);
     pub fn crocksdb_options_set_wal_dir(options: *mut Options, path: *const c_char);
-    pub fn crocksdb_options_set_wal_ttl_seconds(options: *mut Options, ttl: u64);
-    pub fn crocksdb_options_set_wal_size_limit_mb(options: *mut Options, limit: u64);
+    pub fn crocksdb_options_set_WAL_ttl_seconds(options: *mut Options, ttl: u64);
+    pub fn crocksdb_options_set_WAL_size_limit_MB(options: *mut Options, limit: u64);
     pub fn crocksdb_options_set_use_direct_reads(options: *mut Options, v: bool);
     pub fn crocksdb_options_set_use_direct_io_for_flush_and_compaction(
         options: *mut Options,
@@ -634,13 +616,15 @@ extern "C" {
     pub fn crocksdb_writeoptions_create() -> *mut DBWriteOptions;
     pub fn crocksdb_writeoptions_destroy(writeopts: *mut DBWriteOptions);
     pub fn crocksdb_writeoptions_set_sync(writeopts: *mut DBWriteOptions, v: bool);
-    pub fn crocksdb_writeoptions_disable_wal(writeopts: *mut DBWriteOptions, v: c_int);
+    pub fn crocksdb_writeoptions_disable_WAL(writeopts: *mut DBWriteOptions, v: c_int);
     pub fn crocksdb_writeoptions_set_ignore_missing_column_families(
         writeopts: *mut DBWriteOptions,
         v: bool,
     );
     pub fn crocksdb_writeoptions_set_no_slowdown(writeopts: *mut DBWriteOptions, v: bool);
     pub fn crocksdb_writeoptions_set_low_pri(writeopts: *mut DBWriteOptions, v: bool);
+    pub fn crocksdb_writeoptions_set_timestamp(writeopts: *mut DBWriteOptions, k: *const u8, kLen: size_t);
+
     pub fn crocksdb_put(
         db: *mut DBInstance,
         writeopts: *mut DBWriteOptions,
@@ -700,6 +684,7 @@ extern "C" {
         filter: extern "C" fn(*mut c_void, *const DBTableProperties) -> c_int,
         destroy: extern "C" fn(*mut c_void),
     );
+    pub fn crocksdb_readoptions_set_timestamp(readopts: *mut DBReadOptions, k: *const u8, kLen: size_t);
 
     pub fn crocksdb_get(
         db: *const DBInstance,
@@ -847,8 +832,8 @@ extern "C" {
         batch: *mut DBWriteBatch,
         err: *mut *mut c_char,
     );
-    pub fn crocksdb_writebatch_create() -> *mut DBWriteBatch;
-    pub fn crocksdb_writebatch_create_with_capacity(cap: size_t) -> *mut DBWriteBatch;
+    pub fn crocksdb_writebatch_create(timestamp_size: size_t) -> *mut DBWriteBatch;
+    pub fn crocksdb_writebatch_create_with_capacity(cap: size_t, timestamp_size: size_t) -> *mut DBWriteBatch;
     pub fn crocksdb_writebatch_create_from(rep: *const u8, size: size_t) -> *mut DBWriteBatch;
     pub fn crocksdb_writebatch_destroy(batch: *mut DBWriteBatch);
     pub fn crocksdb_writebatch_clear(batch: *mut DBWriteBatch);
@@ -935,9 +920,16 @@ extern "C" {
         batch: *mut DBWriteBatch,
         err: *mut *mut c_char,
     );
+    pub fn crocksdb_writebatch_assign_timestamps(
+        batch: *mut DBWriteBatch,
+        ts_data: *const *const u8,
+        ts_num: size_t,
+        ts_len: size_t,
+    );
 
     // Comparator
     pub fn crocksdb_options_set_comparator(options: *mut Options, cb: *mut DBComparator);
+    pub fn crocksdb_options_set_timestamp_comparator(options: *mut Options, timestamp_size: usize);
     pub fn crocksdb_comparator_create(
         state: *mut c_void,
         destroy: extern "C" fn(*mut c_void) -> (),
@@ -1117,7 +1109,7 @@ extern "C" {
         limit_key: *const u8,
         limit_key_len: size_t,
     );
-    pub fn crocksdb_delete_files_in_range(
+    pub fn crocksdb_delete_file_in_range(
         db: *mut DBInstance,
         range_start_key: *const u8,
         range_start_key_len: size_t,
@@ -1126,7 +1118,7 @@ extern "C" {
         include_end: bool,
         err: *mut *mut c_char,
     );
-    pub fn crocksdb_delete_files_in_range_cf(
+    pub fn crocksdb_delete_file_in_range_cf(
         db: *mut DBInstance,
         cf: *mut DBCFHandle,
         range_start_key: *const u8,
@@ -1177,7 +1169,7 @@ extern "C" {
     pub fn crocksdb_compactionfilter_destroy(filter: *mut DBCompactionFilter);
 
     // Env
-    pub fn crocksdb_default_env_create() -> *mut DBEnv;
+    pub fn crocksdb_create_default_env() -> *mut DBEnv;
     pub fn crocksdb_mem_env_create() -> *mut DBEnv;
     pub fn crocksdb_ctr_encrypted_env_create(
         base_env: *mut DBEnv,
@@ -1796,100 +1788,23 @@ extern "C" {
     pub fn crocksdb_perf_context_env_unlock_file_nanos(ctx: *mut DBPerfContext) -> u64;
     pub fn crocksdb_perf_context_env_new_logger_nanos(ctx: *mut DBPerfContext) -> u64;
 
-    pub fn crocksdb_get_iostats_context() -> *mut DBIOStatsContext;
-    pub fn crocksdb_iostats_context_reset(ctx: *mut DBIOStatsContext);
-    pub fn crocksdb_iostats_context_bytes_written(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_bytes_read(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_open_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_allocate_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_write_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_read_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_range_sync_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_fsync_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_prepare_write_nanos(ctx: *mut DBIOStatsContext) -> u64;
-    pub fn crocksdb_iostats_context_logger_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_get_iostats_context() -> *mut DBIOStatsContext;
+//    pub fn crocksdb_iostats_context_reset(ctx: *mut DBIOStatsContext);
+//    pub fn crocksdb_iostats_context_bytes_written(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_bytes_read(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_open_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_allocate_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_write_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_read_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_range_sync_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_fsync_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_prepare_write_nanos(ctx: *mut DBIOStatsContext) -> u64;
+//    pub fn crocksdb_iostats_context_logger_nanos(ctx: *mut DBIOStatsContext) -> u64;
 
     pub fn crocksdb_run_ldb_tool(argc: c_int, argv: *const *const c_char, opts: *const Options);
 }
 
 // Titan
-extern "C" {
-    pub fn ctitandb_open_column_families(
-        path: *const c_char,
-        options: *const Options,
-        titan_options: *const DBTitanDBOptions,
-        num_column_families: c_int,
-        column_family_names: *const *const c_char,
-        column_family_options: *const *const Options,
-        titan_column_family_options: *const *const DBTitanDBOptions,
-        column_family_handles: *const *mut DBCFHandle,
-        err: *mut *mut c_char,
-    ) -> *mut DBInstance;
-
-    pub fn ctitandb_create_column_family(
-        db: *mut DBInstance,
-        titan_column_family_options: *const DBTitanDBOptions,
-        column_family_name: *const c_char,
-        err: *mut *mut c_char,
-    ) -> *mut DBCFHandle;
-
-    pub fn ctitandb_options_create() -> *mut DBTitanDBOptions;
-    pub fn ctitandb_options_destroy(opts: *mut DBTitanDBOptions);
-    pub fn ctitandb_options_copy(opts: *mut DBTitanDBOptions) -> *mut DBTitanDBOptions;
-    pub fn ctitandb_options_dirname(opts: *mut DBTitanDBOptions) -> *const c_char;
-    pub fn ctitandb_options_set_dirname(opts: *mut DBTitanDBOptions, name: *const c_char);
-    pub fn ctitandb_options_min_blob_size(opts: *mut DBTitanDBOptions) -> u64;
-    pub fn ctitandb_options_set_min_blob_size(opts: *mut DBTitanDBOptions, size: u64);
-    pub fn ctitandb_options_blob_file_compression(opts: *mut DBTitanDBOptions)
-        -> DBCompressionType;
-    pub fn ctitandb_options_set_blob_file_compression(
-        opts: *mut DBTitanDBOptions,
-        t: DBCompressionType,
-    );
-
-    pub fn ctitandb_decode_blob_index(
-        value: *const u8,
-        value_size: u64,
-        index: *mut DBTitanBlobIndex,
-        errptr: *mut *mut c_char,
-    );
-    pub fn ctitandb_encode_blob_index(
-        index: &DBTitanBlobIndex,
-        value: *mut *mut u8,
-        value_size: *mut u64,
-    );
-
-    pub fn ctitandb_options_set_disable_background_gc(opts: *mut DBTitanDBOptions, disable: bool);
-    pub fn ctitandb_options_set_max_background_gc(opts: *mut DBTitanDBOptions, size: i32);
-    pub fn ctitandb_options_set_purge_obsolete_files_period(
-        opts: *mut DBTitanDBOptions,
-        period: usize,
-    );
-    pub fn ctitandb_options_set_min_gc_batch_size(opts: *mut DBTitanDBOptions, size: u64);
-    pub fn ctitandb_options_set_max_gc_batch_size(opts: *mut DBTitanDBOptions, size: u64);
-    pub fn ctitandb_options_set_blob_cache(opts: *mut DBTitanDBOptions, cache: *mut DBCache);
-    pub fn ctitandb_options_set_discardable_ratio(opts: *mut DBTitanDBOptions, ratio: f64);
-    pub fn ctitandb_options_set_sample_ratio(opts: *mut DBTitanDBOptions, ratio: f64);
-    pub fn ctitandb_options_set_merge_small_file_threshold(opts: *mut DBTitanDBOptions, size: u64);
-    pub fn ctitandb_options_set_blob_run_mode(opts: *mut DBTitanDBOptions, t: DBTitanDBBlobRunMode);
-
-    pub fn ctitandb_readoptions_set_key_only(opts: *mut DBTitanReadOptions, v: bool);
-
-    pub fn ctitandb_readoptions_create() -> *mut DBTitanReadOptions;
-    pub fn ctitandb_readoptions_destroy(readopts: *mut DBTitanReadOptions);
-
-    pub fn ctitandb_create_iterator(
-        db: *mut DBInstance,
-        readopts: *const DBReadOptions,
-        titan_readopts: *const DBTitanReadOptions,
-    ) -> *mut DBIterator;
-    pub fn ctitandb_create_iterator_cf(
-        db: *mut DBInstance,
-        readopts: *const DBReadOptions,
-        titan_readopts: *const DBTitanReadOptions,
-        cf_handle: *mut DBCFHandle,
-    ) -> *mut DBIterator;
-}
 
 #[cfg(test)]
 mod test {
@@ -1954,7 +1869,7 @@ mod test {
             assert_eq!(sizes.len(), 1);
             assert!(sizes[0] > 0);
 
-            crocksdb_delete_files_in_range(
+            crocksdb_delete_file_in_range(
                 db,
                 b"\x00\x00".as_ptr(),
                 2,

@@ -189,7 +189,7 @@ mod test {
             let db = DB::open_cf(
                 opts.clone(),
                 path.path().to_str().unwrap(),
-                vec![("default", cf_opts.clone())],
+                vec![("default".to_string(), cf_opts.clone())],
             )
             .unwrap();
             let p = db.put(b"k1", b"a");
@@ -228,7 +228,7 @@ mod test {
             let db = DB::open_cf(
                 opts.clone(),
                 path.path().to_str().unwrap(),
-                vec![("default", cf_opts.clone())],
+                vec![("default".to_string(), cf_opts.clone())],
             )
             .unwrap();
 
@@ -246,7 +246,7 @@ mod test {
             let db = DB::open_cf(
                 opts.clone(),
                 path.path().to_str().unwrap(),
-                vec![("default", cf_opts)],
+                vec![("default".to_string(), cf_opts)],
             )
             .unwrap();
 

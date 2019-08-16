@@ -2282,6 +2282,8 @@ mod test {
     use std::thread;
     use tempdir::TempDir;
     use std::cmp::min;
+    use rocksdb::SeekKey::{Key, Start};
+    use rocksdb_options::bytes_to_u64;
 
     #[test]
     fn test_user_timestamp() {
@@ -2312,6 +2314,8 @@ mod test {
         if let Err(e) = db.write(&write_batch) {
             println!("Error: {}", e);
         }
+        db.put_cf_with_ts(cf_handle, b"aaaa", b"v4", 7).unwrap();
+        db.put_cf_with_ts(cf_handle, b"bbbb", b"v4", 7).unwrap();
         let snap = db.snapshot();
         let mut read_opt = ReadOptions::new();
         read_opt.set_timestamp(1);
@@ -2324,7 +2328,37 @@ mod test {
         let v3 = snap.get_cf_with_ts(cf_handle, b"abcd", 1999999).unwrap();
         assert_eq!(v3.unwrap().to_utf8().unwrap(), "v3");
         let v3 = snap.get_cf_with_ts(cf_handle, b"aaaa", 1999999).unwrap();
-        assert_eq!(v3.unwrap().to_utf8().unwrap(), "v3");
+        assert_eq!(v3.unwrap().to_utf8().unwrap(), "v4");
+
+        //read_opt.set_timestamp(5);
+        let read_opt = ReadOptions::new();
+        // let mut iter = snap.iter_opt(read_opt);
+        let mut iter = db.iter_cf(cf_handle);
+        let mut ret = Vec::default();
+        let mut start_key = b"aaaa".to_owned().to_vec();
+        let mut ts = u64_to_bytes(5);
+        start_key.append(&mut ts);
+        iter.seek_for_prev(Key(start_key.as_slice()));
+        while iter.valid() {
+            let mut key = iter.key().to_owned();
+            let l = key.len();
+            let ts_data = &key[(l-8)..l].to_owned();
+            let data_key = &key[0..(l-8)].to_owned();
+            let ts = bytes_to_u64(ts_data);
+            if ts != 5 {
+                iter.next();
+                continue;
+            }
+            let s = String::from_utf8(data_key.to_vec()).unwrap();
+            let v = String::from_utf8(iter.value().to_owned()).unwrap();
+            println!("key: {}, v: {}", s, v);
+            ret.push(s);
+            iter.next();
+        }
+        assert_eq!(3, ret.len());
+        assert_eq!(b"aaaa", ret[0].as_bytes());
+        assert_eq!(b"abcd", ret[1].as_bytes());
+        assert_eq!(b"bbbb", ret[2].as_bytes());
     }
 
     #[test]

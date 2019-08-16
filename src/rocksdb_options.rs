@@ -1770,7 +1770,7 @@ pub fn u64_to_bytes(ts: u64) -> Vec<u8> {
     return data;
 }
 
-pub fn bytes_to_u64(data: &Vec<u8>) -> u64 {
+pub fn bytes_to_u64(data: &[u8]) -> u64 {
     let mut ts = 0;
     for i in 0..8 {
         ts = (ts << 8) | data[i] as u64;

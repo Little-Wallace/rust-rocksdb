@@ -39,6 +39,7 @@ use std::{fs, ptr, slice};
 use librocksdb_sys::crocksdb_delete;
 use util::is_power_of_two;
 
+const ERR_CONVERT_PATH: &str = "Failed to convert path to CString when opening rocksdb";
 pub const DEFAULT_TIMESTAMP_SIZE: usize = 8;
 
 pub struct CFHandle {
@@ -420,6 +421,28 @@ impl DB {
         DB::open(opts, path)
     }
 
+    pub fn open_opt(opts: DBOptions, path: &str) -> Result<DB, String> {
+        let cpath = CString::new(path.as_bytes()).map_err(|_| ERR_CONVERT_PATH.to_owned())?;
+        let db = {
+            let db_options = opts.inner;
+            let db_path = cpath.as_ptr();
+            unsafe {
+                ffi_try!(crocksdb_open(
+                    db_options,
+                    db_path
+                ))
+            }
+        };
+        Ok(DB{
+            inner: db,
+            cfs: BTreeMap::default(),
+            path: path.to_owned(),
+            opts,
+            _cf_opts: Vec::default(),
+            readonly: false,
+        })
+    }
+
     pub fn open(opts: DBOptions, path: &str) -> Result<DB, String> {
         let mut cfds: Vec<(String, ColumnFamilyOptions)> = Vec::new();
         cfds.push((String::from("default"), ColumnFamilyOptions::default()));
@@ -443,7 +466,6 @@ impl DB {
         path: &str,
         cfds: Vec<(String, ColumnFamilyOptions)>,
     ) -> Result<DB, String> {
-        const ERR_CONVERT_PATH: &str = "Failed to convert path to CString when opening rocksdb";
         const ERR_NULL_DB_ONINIT: &str = "Could not initialize database";
         const ERR_NULL_CF_HANDLE: &str = "Received null column family handle from DB";
 
@@ -2284,13 +2306,32 @@ mod test {
     use std::cmp::min;
     use rocksdb::SeekKey::{Key, Start};
     use rocksdb_options::bytes_to_u64;
+    use std::u64;
+
+    #[test]
+    fn test_default_cf_user_timestamp() {
+        let path = TempDir::new("_rust_user_timestamp").expect("");
+        let mut opts = DBOptions::new();
+        opts.create_if_missing(true);
+        opts.set_user_timestamp_comparator(DEFAULT_TIMESTAMP_SIZE);
+        let mut db = DB::open_opt(opts, path.path().to_str().unwrap()).unwrap();
+        let mut write_option = WriteOptions::new();
+        write_option.set_timestamp(1);
+        db.put_opt(b"aaaa", b"v1", &write_option).unwrap();
+        write_option.set_timestamp(3);
+        db.put_opt(b"aaaa", b"v2", &write_option).unwrap();
+        let mut read_option = ReadOptions::new();
+        read_option.set_timestamp(u64::MAX);
+        let result = db.get_opt(b"aaaa", &read_option).unwrap().unwrap();
+        let value = result.to_vec();
+        assert_eq!(b"v2", value.as_slice());
+    }
 
     #[test]
     fn test_user_timestamp() {
         let path = TempDir::new("_rust_user_timestamp").expect("");
         let mut opts = DBOptions::new();
         opts.create_if_missing(true);
-        opts.set_user_timestamp_comparator(DEFAULT_TIMESTAMP_SIZE);
         let mut db = DB::open(opts, path.path().to_str().unwrap()).unwrap();
         let mut cfd_option = ColumnFamilyOptions::default();
         cfd_option.set_timestamp_comparator(DEFAULT_TIMESTAMP_SIZE);
@@ -2327,7 +2368,7 @@ mod test {
         assert_eq!(v2.unwrap().to_utf8().unwrap(), "v2");
         let v3 = snap.get_cf_with_ts(cf_handle, b"abcd", 1999999).unwrap();
         assert_eq!(v3.unwrap().to_utf8().unwrap(), "v3");
-        let v3 = snap.get_cf_with_ts(cf_handle, b"aaaa", 1999999).unwrap();
+        let v3 = snap.get_cf_with_ts(cf_handle, b"aaaa", u64::MAX).unwrap();
         assert_eq!(v3.unwrap().to_utf8().unwrap(), "v4");
 
         //read_opt.set_timestamp(5);

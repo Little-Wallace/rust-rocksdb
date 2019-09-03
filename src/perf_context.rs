@@ -334,6 +334,9 @@ impl PerfContext {
     pub fn env_new_logger_nanos(&self) -> u64 {
         unsafe { crocksdb_ffi::crocksdb_perf_context_env_new_logger_nanos(self.inner) }
     }
+    pub fn write_thread_wait_nanos(&self) -> u64 { 
+	unsafe { crocksdb_ffi::crocksdb_perf_context_write_thread_wait_nanos(self.inner) }
+    }
 }
 
 pub struct IOStatsContext {

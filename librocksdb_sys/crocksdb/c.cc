@@ -4891,6 +4891,11 @@ uint64_t crocksdb_perf_context_env_new_logger_nanos(crocksdb_perf_context_t* ctx
   return ctx->rep.env_new_logger_nanos;
 }
 
+uint64_t crocksdb_perf_context_write_thread_wait_nanos(crocksdb_perf_context_t* ctx) {
+  return ctx->rep.write_thread_wait_nanos;
+}
+
+
 // IOStatsContext
 
 struct crocksdb_iostats_context_t {

@@ -1794,7 +1794,7 @@ extern "C" {
     pub fn crocksdb_perf_context_env_lock_file_nanos(ctx: *mut DBPerfContext) -> u64;
     pub fn crocksdb_perf_context_env_unlock_file_nanos(ctx: *mut DBPerfContext) -> u64;
     pub fn crocksdb_perf_context_env_new_logger_nanos(ctx: *mut DBPerfContext) -> u64;
-
+    pub fn crocksdb_perf_context_write_thread_wait_nanos(ctx: *mut DBPerfContext) -> u64;
     pub fn crocksdb_get_iostats_context() -> *mut DBIOStatsContext;
     pub fn crocksdb_iostats_context_reset(ctx: *mut DBIOStatsContext);
     pub fn crocksdb_iostats_context_bytes_written(ctx: *mut DBIOStatsContext) -> u64;

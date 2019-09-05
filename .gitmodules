@@ -1,7 +1,7 @@
 [submodule "rocksdb"]
 	path = librocksdb_sys/rocksdb
-	url = https://github.com/pingcap/rocksdb.git
-	branch = tikv-3.0
+	url = https://github.com/Little-Wallace/rocksdb.git
+	branch = multi_thread_memtable
 [submodule "titan"]
 	path = librocksdb_sys/libtitan_sys/titan
 	url = https://github.com/pingcap/titan.git

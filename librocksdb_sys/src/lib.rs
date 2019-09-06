@@ -444,6 +444,9 @@ extern "C" {
     pub fn crocksdb_options_set_use_fsync(options: *mut Options, v: c_int);
     pub fn crocksdb_options_set_bytes_per_sync(options: *mut Options, bytes: u64);
     pub fn crocksdb_options_set_enable_pipelined_write(options: *mut Options, v: bool);
+    pub fn crocksdb_options_set_enable_multithread_write(options: *mut Options, v: bool);
+    pub fn crocksdb_options_set_memtable_write_pool_size(options: *mut Options, v: size_t);
+
     pub fn crocksdb_options_set_allow_concurrent_memtable_write(options: *mut Options, v: bool);
     pub fn crocksdb_options_set_manual_wal_flush(options: *mut Options, v: bool);
     pub fn crocksdb_options_optimize_for_point_lookup(

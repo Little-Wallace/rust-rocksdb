@@ -2508,6 +2508,15 @@ void crocksdb_options_set_enable_pipelined_write(crocksdb_options_t *opt,
   opt->rep.enable_pipelined_write = v;
 }
 
+void crocksdb_options_set_enable_multithread_write(crocksdb_options_t *opt,
+                                                 unsigned char v) {
+  opt->rep.enable_multi_thread_write = v;
+}
+
+void crocksdb_options_set_memtable_write_pool_size(crocksdb_options_t *opt, size_t v) {
+  opt->rep.write_thread_pool_size = v;
+}
+
 void crocksdb_options_set_allow_concurrent_memtable_write(crocksdb_options_t* opt,
                                                          unsigned char v) {
   opt->rep.allow_concurrent_memtable_write = v;

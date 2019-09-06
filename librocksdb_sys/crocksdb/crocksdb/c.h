@@ -1047,6 +1047,14 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_bytes_per_sync(
 extern C_ROCKSDB_LIBRARY_API void
 crocksdb_options_set_enable_pipelined_write(crocksdb_options_t *,
                                             unsigned char);
+
+extern C_ROCKSDB_LIBRARY_API void
+crocksdb_options_set_enable_multithread_write(crocksdb_options_t *opt,
+                                             unsigned char v);
+
+extern C_ROCKSDB_LIBRARY_API void
+crocksdb_options_set_memtable_write_pool_size(crocksdb_options_t *opt, size_t v);
+
 extern C_ROCKSDB_LIBRARY_API void
 crocksdb_options_set_allow_concurrent_memtable_write(crocksdb_options_t *,
                                                      unsigned char);

@@ -989,9 +989,9 @@ impl DBOptions {
     }
 
     pub fn enable_multithread_write(&self, v: bool) {
-       unsafe {
-           crocksdb_ffi::crocksdb_options_set_enable_multithread_write(self.inner, v);
-       }
+        unsafe {
+            crocksdb_ffi::crocksdb_options_set_enable_multithread_write(self.inner, v);
+        }
     }
 
     pub fn set_memtable_write_pool_size(&self, v: usize) {

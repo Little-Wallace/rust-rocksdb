@@ -966,7 +966,8 @@ void crocksdb_write_multi_batch(
     crocksdb_writebatch_t** batches,
     size_t batch_size,
     char** errptr) {
-    std::vector<WriteBatch*> ws;
+  thread_local std::vector<WriteBatch*> ws;
+  ws.clear();
   for (size_t i = 0; i < batch_size; i ++) {
     ws.push_back(&batches[i]->rep);
   }

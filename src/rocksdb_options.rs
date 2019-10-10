@@ -287,6 +287,7 @@ pub struct ReadOptions {
     inner: *mut DBReadOptions,
     lower_bound: Vec<u8>,
     upper_bound: Vec<u8>,
+    timestamp: Vec<u8>,
     titan_inner: *mut DBTitanReadOptions,
 }
 
@@ -310,6 +311,7 @@ impl Default for ReadOptions {
                 inner: opts,
                 lower_bound: vec![],
                 upper_bound: vec![],
+                timestamp: vec![],
                 titan_inner: ptr::null_mut::<DBTitanReadOptions>(),
             }
         }
@@ -349,6 +351,17 @@ impl ReadOptions {
                 self.inner,
                 self.lower_bound.as_ptr(),
                 self.lower_bound.len(),
+            );
+        }
+    }
+
+    pub fn set_user_timestamp(&mut self, timestamp: Vec<u8>) {
+        self.timestamp = timestamp;
+        unsafe {
+            crocksdb_ffi::crocksdb_readoptions_set_user_timestamp(
+                self.inner,
+                self.timestamp.as_ptr(),
+                self.timestamp.len()
             );
         }
     }
@@ -1281,6 +1294,12 @@ impl ColumnFamilyOptions {
                 merge_operator::name_callback,
             );
             crocksdb_ffi::crocksdb_options_set_merge_operator(self.inner, mo);
+        }
+    }
+
+    pub fn set_user_timestamp_comparator(&mut self, timestamp_size: usize) {
+        unsafe {
+            crocksdb_ffi::crocksdb_options_set_user_comparator(self.inner, timestamp_size);
         }
     }
 

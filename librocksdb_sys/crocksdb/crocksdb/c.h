@@ -836,6 +836,8 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_compaction_filter_factory
     crocksdb_options_t*, crocksdb_compactionfilterfactory_t*);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_compaction_readahead_size(
     crocksdb_options_t*, size_t);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_user_comparator(
+    crocksdb_options_t* opt, size_t timestamp_size);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_comparator(
     crocksdb_options_t*, crocksdb_comparator_t*);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_merge_operator(
@@ -1261,6 +1263,8 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_readoptions_set_fill_cache(
     crocksdb_readoptions_t*, unsigned char);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_readoptions_set_snapshot(
     crocksdb_readoptions_t*, const crocksdb_snapshot_t*);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_readoptions_set_user_timestamp(
+    crocksdb_readoptions_t*, const char* key, size_t keylen);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_readoptions_set_iterate_lower_bound(
     crocksdb_readoptions_t*, const char* key, size_t keylen);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_readoptions_set_iterate_upper_bound(

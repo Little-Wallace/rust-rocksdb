@@ -2580,6 +2580,8 @@ mod test {
     use std::string::String;
     use std::thread;
     use tempdir::TempDir;
+    use std::io::Write;
+    use byteorder::{BigEndian, WriteBytesExt, ByteOrder};
 
     #[test]
     fn external() {
@@ -3110,5 +3112,79 @@ mod test {
         db.put(b"key", b"value").unwrap();
         let seq2 = db.get_latest_sequence_number();
         assert!(seq2 > seq1);
+    }
+
+    #[test]
+    fn test_user_timestamp() {
+        let path = TempDir::new("_rust_rocksdb_user_timestamp").expect("");
+        let dbpath = path.path().to_str().unwrap().clone();
+        let cf_name: &str = "cf_user_timestamp";
+
+
+        let mut opts = DBOptions::new();
+        opts.create_if_missing(true);
+        let mut db = DB::open(opts, dbpath).unwrap();
+
+        let mut cf_opts = ColumnFamilyOptions::new();
+        cf_opts.set_user_timestamp_comparator(8);
+        db.create_cf((cf_name.clone(), cf_opts)).unwrap();
+        let ts_cf = db.cf_handle(cf_name.clone()).unwrap();
+        let default_cf = db.cf_handle("default").unwrap();
+        let key = "aaaa";
+        let opt = WriteOptions::new();
+        {
+            let mut read_opt = ReadOptions::new();
+            let mut key_ts = key.as_bytes().to_vec();
+            key_ts.write_u64::<BigEndian>(!1);
+            let batch = WriteBatch::new();
+            batch.put_cf(default_cf, &key_ts, b"v1");
+            batch.put_cf(ts_cf, &key_ts, b"v1");
+            db.write_opt(&batch, &opt);
+            let v1_default = db.get_cf_opt(default_cf,&key_ts,&read_opt).unwrap();
+            assert_eq!(v1_default.unwrap().to_utf8().unwrap(), "v1");
+            let mut ts = Vec::new();
+            ts.write_u64::<BigEndian>(!1);
+            let t2_ts = db.get_cf_opt(ts_cf, &key_ts,&read_opt).unwrap();
+            read_opt.set_user_timestamp(ts);
+            let v1_ts = db.get_cf_opt(ts_cf, key.as_bytes(),&read_opt).unwrap();
+            assert_eq!(v1_ts.unwrap().to_utf8().unwrap(), "v1");
+        }
+        {
+            let mut read_opt = ReadOptions::new();
+            let mut key_ts = key.as_bytes().to_vec();
+            key_ts.write_u64::<BigEndian>(!2);
+            let batch = WriteBatch::new();
+            batch.put_cf(default_cf, &key_ts, b"v2");
+            batch.put_cf(ts_cf, &key_ts, b"v2");
+            db.write_opt(&batch, &opt);
+            let v2_default = db.get_cf_opt(default_cf,&key_ts,&read_opt).unwrap();
+            assert_eq!(v2_default.unwrap().to_utf8().unwrap(), "v2");
+            let mut ts = Vec::new();
+            ts.write_u64::<BigEndian>(!1);
+            read_opt.set_user_timestamp(ts);
+            let v1_ts = db.get_cf_opt(ts_cf,key.as_bytes(),&read_opt).unwrap();
+            assert_eq!(v1_ts.unwrap().to_utf8().unwrap(), "v1");
+            let mut ts = Vec::new();
+            ts.write_u64::<BigEndian>(!99);
+            read_opt.set_user_timestamp(ts);
+            let v2_ts = db.get_cf_opt(ts_cf,key.as_bytes(),&read_opt).unwrap();
+            assert_eq!(v2_ts.unwrap().to_utf8().unwrap(), "v2");
+            let mut iter = db.iter_cf_opt(ts_cf, read_opt);
+            iter.seek(SeekKey::Start);
+            let mut ret = Vec::new();
+            while iter.valid() {
+                ret.push((iter.key().to_owned(), iter.value().to_owned()));
+                iter.next();
+            }
+            assert_eq!(2, ret.len());
+            assert_eq!(key_ts, ret[0].0);
+            assert_eq!("v2".as_bytes().to_vec(), ret[0].1);
+            key_ts.clear();
+            key_ts.write(key.as_bytes());
+            key_ts.write_u64::<BigEndian>(!1);
+            assert_eq!(key_ts, ret[1].0);
+            assert_eq!("v1".as_bytes().to_vec(), ret[1].1);
+        }
+
     }
 }

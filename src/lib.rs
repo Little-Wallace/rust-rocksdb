@@ -19,6 +19,8 @@ extern crate libc;
 pub extern crate librocksdb_sys;
 #[cfg(test)]
 extern crate tempdir;
+#[cfg(test)]
+extern crate byteorder;
 
 pub use compaction_filter::CompactionFilter;
 pub use event_listener::{

@@ -731,6 +731,11 @@ extern "C" {
         readopts: *mut DBReadOptions,
         snapshot: *const DBSnapshot,
     );
+    pub fn crocksdb_readoptions_set_user_timestamp(
+        readopts: *mut DBReadOptions,
+        k: *const u8,
+        kLen: size_t,
+    );
     pub fn crocksdb_readoptions_set_iterate_lower_bound(
         readopts: *mut DBReadOptions,
         k: *const u8,
@@ -1001,6 +1006,7 @@ extern "C" {
 
     // Comparator
     pub fn crocksdb_options_set_comparator(options: *mut Options, cb: *mut DBComparator);
+    pub fn crocksdb_options_set_user_comparator(options: *mut Options, timestamp_size: usize);
     pub fn crocksdb_comparator_create(
         state: *mut c_void,
         destroy: extern "C" fn(*mut c_void) -> (),

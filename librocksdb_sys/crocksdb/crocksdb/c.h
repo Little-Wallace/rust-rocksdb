@@ -840,6 +840,8 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_user_comparator(
     crocksdb_options_t* opt, size_t timestamp_size);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_comparator(
     crocksdb_options_t*, crocksdb_comparator_t*);
+extern C_ROCKSDB_LIBRARY_API const char* crocksdb_options_get_comparator_name(
+    crocksdb_options_t*);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_merge_operator(
     crocksdb_options_t*, crocksdb_mergeoperator_t*);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_compression_per_level(

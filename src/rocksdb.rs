@@ -2574,14 +2574,15 @@ pub fn run_ldb_tool(ldb_args: &Vec<String>, opts: &DBOptions) {
 #[cfg(test)]
 mod test {
     use super::*;
+    use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
     use std::fs;
+    use std::io::Write;
     use std::path::Path;
     use std::str;
     use std::string::String;
     use std::thread;
     use tempdir::TempDir;
-    use std::io::Write;
-    use byteorder::{BigEndian, WriteBytesExt, ByteOrder};
+    use librocksdb_sys::ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME;
 
     #[test]
     fn external() {
@@ -3120,13 +3121,13 @@ mod test {
         let dbpath = path.path().to_str().unwrap().clone();
         let cf_name: &str = "cf_user_timestamp";
 
-
         let mut opts = DBOptions::new();
         opts.create_if_missing(true);
         let mut db = DB::open(opts, dbpath).unwrap();
 
         let mut cf_opts = ColumnFamilyOptions::new();
         cf_opts.set_user_timestamp_comparator(8);
+        assert_eq!(ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME, cf_opts.get_comparator_name());
         db.create_cf((cf_name.clone(), cf_opts)).unwrap();
         let ts_cf = db.cf_handle(cf_name.clone()).unwrap();
         let default_cf = db.cf_handle("default").unwrap();
@@ -3140,13 +3141,13 @@ mod test {
             batch.put_cf(default_cf, &key_ts, b"v1");
             batch.put_cf(ts_cf, &key_ts, b"v1");
             db.write_opt(&batch, &opt);
-            let v1_default = db.get_cf_opt(default_cf,&key_ts,&read_opt).unwrap();
+            let v1_default = db.get_cf_opt(default_cf, &key_ts, &read_opt).unwrap();
             assert_eq!(v1_default.unwrap().to_utf8().unwrap(), "v1");
             let mut ts = Vec::new();
             ts.write_u64::<BigEndian>(!1);
-            let t2_ts = db.get_cf_opt(ts_cf, &key_ts,&read_opt).unwrap();
+            let t2_ts = db.get_cf_opt(ts_cf, &key_ts, &read_opt).unwrap();
             read_opt.set_user_timestamp(ts);
-            let v1_ts = db.get_cf_opt(ts_cf, key.as_bytes(),&read_opt).unwrap();
+            let v1_ts = db.get_cf_opt(ts_cf, key.as_bytes(), &read_opt).unwrap();
             assert_eq!(v1_ts.unwrap().to_utf8().unwrap(), "v1");
         }
         {
@@ -3157,17 +3158,17 @@ mod test {
             batch.put_cf(default_cf, &key_ts, b"v2");
             batch.put_cf(ts_cf, &key_ts, b"v2");
             db.write_opt(&batch, &opt);
-            let v2_default = db.get_cf_opt(default_cf,&key_ts,&read_opt).unwrap();
+            let v2_default = db.get_cf_opt(default_cf, &key_ts, &read_opt).unwrap();
             assert_eq!(v2_default.unwrap().to_utf8().unwrap(), "v2");
             let mut ts = Vec::new();
             ts.write_u64::<BigEndian>(!1);
             read_opt.set_user_timestamp(ts);
-            let v1_ts = db.get_cf_opt(ts_cf,key.as_bytes(),&read_opt).unwrap();
+            let v1_ts = db.get_cf_opt(ts_cf, key.as_bytes(), &read_opt).unwrap();
             assert_eq!(v1_ts.unwrap().to_utf8().unwrap(), "v1");
             let mut ts = Vec::new();
             ts.write_u64::<BigEndian>(!99);
             read_opt.set_user_timestamp(ts);
-            let v2_ts = db.get_cf_opt(ts_cf,key.as_bytes(),&read_opt).unwrap();
+            let v2_ts = db.get_cf_opt(ts_cf, key.as_bytes(), &read_opt).unwrap();
             assert_eq!(v2_ts.unwrap().to_utf8().unwrap(), "v2");
             let mut iter = db.iter_cf_opt(ts_cf, read_opt);
             iter.seek(SeekKey::Start);
@@ -3185,6 +3186,5 @@ mod test {
             assert_eq!(key_ts, ret[1].0);
             assert_eq!("v1".as_bytes().to_vec(), ret[1].1);
         }
-
     }
 }

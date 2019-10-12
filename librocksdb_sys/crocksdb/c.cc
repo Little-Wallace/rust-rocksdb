@@ -2329,6 +2329,11 @@ void crocksdb_options_compaction_readahead_size(
   opt->rep.compaction_readahead_size = s;
 }
 
+const char* crocksdb_options_get_comparator_name(
+    crocksdb_options_t* opt) {
+    return opt->rep.comparator->Name();
+}
+
 void crocksdb_options_set_comparator(
     crocksdb_options_t* opt,
     crocksdb_comparator_t* cmp) {

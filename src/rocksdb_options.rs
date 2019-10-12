@@ -361,7 +361,7 @@ impl ReadOptions {
             crocksdb_ffi::crocksdb_readoptions_set_user_timestamp(
                 self.inner,
                 self.timestamp.as_ptr(),
-                self.timestamp.len()
+                self.timestamp.len(),
             );
         }
     }
@@ -1300,6 +1300,13 @@ impl ColumnFamilyOptions {
     pub fn set_user_timestamp_comparator(&mut self, timestamp_size: usize) {
         unsafe {
             crocksdb_ffi::crocksdb_options_set_user_comparator(self.inner, timestamp_size);
+        }
+    }
+
+    pub fn get_comparator_name<'a>(&'a self) -> &'a str {
+        unsafe {
+            let name = crocksdb_ffi::crocksdb_options_get_comparator_name(self.inner);
+            CStr::from_ptr(name).to_str().unwrap()
         }
     }
 

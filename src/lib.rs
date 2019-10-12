@@ -18,9 +18,9 @@ extern crate libc;
 #[macro_use]
 pub extern crate librocksdb_sys;
 #[cfg(test)]
-extern crate tempdir;
-#[cfg(test)]
 extern crate byteorder;
+#[cfg(test)]
+extern crate tempdir;
 
 pub use compaction_filter::CompactionFilter;
 pub use event_listener::{
@@ -31,6 +31,7 @@ pub use librocksdb_sys::{
     DBBackgroundErrorReason, DBBottommostLevelCompaction, DBCompactionStyle, DBCompressionType,
     DBEntryType, DBInfoLogLevel, DBRateLimiterMode, DBRecoveryMode, DBStatisticsHistogramType,
     DBStatisticsTickerType, DBStatusPtr, DBTitanDBBlobRunMode, IndexType, WriteStallCondition,
+    ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME,
 };
 pub use merge_operator::MergeOperands;
 pub use metadata::{ColumnFamilyMetaData, LevelMetaData, SstFileMetaData};

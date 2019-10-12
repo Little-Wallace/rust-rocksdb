@@ -301,6 +301,8 @@ pub enum DBBackgroundErrorReason {
     MemTable = 4,
 }
 
+pub const ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME: &str = "UserTimestampComparator";
+
 pub fn error_message(ptr: *mut c_char) -> String {
     let c_str = unsafe { CStr::from_ptr(ptr) };
     let s = format!("{}", c_str.to_string_lossy());
@@ -1005,6 +1007,7 @@ extern "C" {
     );
 
     // Comparator
+    pub fn crocksdb_options_get_comparator_name(options: *mut Options) -> *const c_char;
     pub fn crocksdb_options_set_comparator(options: *mut Options, cb: *mut DBComparator);
     pub fn crocksdb_options_set_user_comparator(options: *mut Options, timestamp_size: usize);
     pub fn crocksdb_comparator_create(

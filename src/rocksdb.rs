@@ -2575,6 +2575,7 @@ pub fn run_ldb_tool(ldb_args: &Vec<String>, opts: &DBOptions) {
 mod test {
     use super::*;
     use byteorder::{BigEndian, ByteOrder, WriteBytesExt};
+    use librocksdb_sys::ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME;
     use std::fs;
     use std::io::Write;
     use std::path::Path;
@@ -2582,7 +2583,6 @@ mod test {
     use std::string::String;
     use std::thread;
     use tempdir::TempDir;
-    use librocksdb_sys::ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME;
 
     #[test]
     fn external() {
@@ -3127,7 +3127,10 @@ mod test {
 
         let mut cf_opts = ColumnFamilyOptions::new();
         cf_opts.set_user_timestamp_comparator(8);
-        assert_eq!(ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME, cf_opts.get_comparator_name());
+        assert_eq!(
+            ROCKSDB_USER_TIMESTAMP_COMPARATOR_NAME,
+            cf_opts.get_comparator_name()
+        );
         db.create_cf((cf_name.clone(), cf_opts)).unwrap();
         let ts_cf = db.cf_handle(cf_name.clone()).unwrap();
         let default_cf = db.cf_handle("default").unwrap();

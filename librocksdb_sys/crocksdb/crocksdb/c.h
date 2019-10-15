@@ -1761,9 +1761,8 @@ extern C_ROCKSDB_LIBRARY_API crocksdb_table_properties_collection_t*
 crocksdb_get_propeties_of_all_tables_cf(crocksdb_t* db,
                                         crocksdb_column_family_handle_t* cf,
                                         char** errptr);
-
 extern C_ROCKSDB_LIBRARY_API crocksdb_table_properties_collection_t*
-crocksdb_get_propeties_of_tables_in_range(
+crocksdb_get_properties_of_tables_in_range(
     crocksdb_t* db, crocksdb_column_family_handle_t* cf, int num_ranges,
     const char* const* start_keys, const size_t* start_keys_lens,
     const char* const* limit_keys, const size_t* limit_keys_lens,

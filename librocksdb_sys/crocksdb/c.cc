@@ -400,7 +400,7 @@ struct crocksdb_timestamp_comparator_t : public Comparator {
     }
   }
 
-  virtual const char* Name() const override { return "UserTimestampComparator"; }
+  virtual const char* Name() const override { return "leveldb.BytewiseComparator"; }
 
   // No-ops since the C binding does not support key shortening methods.
 //  virtual void FindShortestSeparator(std::string*,

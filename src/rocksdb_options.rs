@@ -1078,17 +1078,6 @@ impl DBOptions {
         }
     }
 
-    pub fn set_hash_skiplist(&self, bucket_size: u64, skip_height: i32) {
-        unsafe {
-            crocksdb_ffi::crocksdb_options_set_hash_skip_list_rep(
-                self.inner,
-                bucket_size,
-                skip_height,
-                4,
-            );
-        }
-    }
-
     pub fn get_memtable_name(&self) -> Option<&str> {
         unsafe {
             let memtable_name =
@@ -1618,6 +1607,17 @@ impl ColumnFamilyOptions {
     pub fn set_doubly_skiplist(&self) {
         unsafe {
             crocksdb_ffi::crocksdb_options_set_doubly_skip_list_rep(self.inner);
+        }
+    }
+
+    pub fn set_hash_skiplist(&self, bucket_size: u64, skip_height: i32) {
+        unsafe {
+            crocksdb_ffi::crocksdb_options_set_hash_skip_list_rep(
+                self.inner,
+                bucket_size,
+                skip_height,
+                4,
+            );
         }
     }
 

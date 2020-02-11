@@ -24,6 +24,7 @@
 #include "rocksdb/merge_operator.h"
 #include "rocksdb/options.h"
 #include "rocksdb/perf_context.h"
+#include "rocksdb/raft_memtable_factory.h"
 #include "rocksdb/rate_limiter.h"
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/sst_file_reader.h"
@@ -2753,6 +2754,12 @@ void crocksdb_options_set_hash_link_list_rep(
 
 void crocksdb_options_set_doubly_skip_list_rep(crocksdb_options_t *opt) {
   rocksdb::MemTableRepFactory* factory = new rocksdb::DoublySkipListFactory();
+  opt->rep.memtable_factory.reset(factory);
+}
+
+void crocksdb_options_set_raft_skip_list_rep(crocksdb_options_t *opt,
+    const char* prefix, size_t len, uint8_t log_flag) {
+  rocksdb::MemTableRepFactory* factory = new rocksdb::RaftMemTableFactory(std::string(prefix, len), log_flag);
   opt->rep.memtable_factory.reset(factory);
 }
 

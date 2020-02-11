@@ -1077,6 +1077,8 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_hash_skip_list_rep(
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_hash_link_list_rep(
     crocksdb_options_t*, size_t);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_doubly_skip_list_rep(crocksdb_options_t *opt);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_raft_skip_list_rep(crocksdb_options_t *opt,
+    const char* prefix, size_t len, uint8_t flag);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_plain_table_factory(
     crocksdb_options_t*, uint32_t, int, double, size_t);
 

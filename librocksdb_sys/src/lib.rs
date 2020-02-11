@@ -380,7 +380,7 @@ pub enum DBBackgroundErrorReason {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[serde(rename_all = "kebab-case")]
+#[repr(C)]
 pub enum DBMemTableType {
     InlineSkipList = 0,
     DoublySkipList = 1,

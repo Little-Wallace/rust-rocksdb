@@ -612,7 +612,12 @@ extern "C" {
         a2: i32,
     );
     pub fn crocksdb_options_set_doubly_skip_list_rep(options: *mut Options);
-    pub fn crocksdb_options_set_raft_skip_list_rep(options: *mut Options, prefix: *const c_char, prefix_len: size_t, flag: u8);
+    pub fn crocksdb_options_set_raft_skip_list_rep(
+        options: *mut Options,
+        prefix: *const c_char,
+        prefix_len: size_t,
+        flag: u8,
+    );
     pub fn crocksdb_options_set_compaction_style(options: *mut Options, cs: DBCompactionStyle);
     pub fn crocksdb_options_set_fifo_compaction_options(
         options: *mut Options,

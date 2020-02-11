@@ -1611,9 +1611,14 @@ impl ColumnFamilyOptions {
     }
 
     pub fn set_raft_skiplist(&self, prefix: &str, log_flag: u8) {
-        let prefix_name= CString::new(prefix.as_bytes()).unwrap();
+        let prefix_name = CString::new(prefix.as_bytes()).unwrap();
         unsafe {
-            crocksdb_ffi::crocksdb_options_set_raft_skip_list_rep(self.inner, prefix_name.as_ptr(), prefix.len(), log_flag);
+            crocksdb_ffi::crocksdb_options_set_raft_skip_list_rep(
+                self.inner,
+                prefix_name.as_ptr(),
+                prefix.len(),
+                log_flag,
+            );
         }
     }
 

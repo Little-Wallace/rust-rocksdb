@@ -379,7 +379,7 @@ pub enum DBBackgroundErrorReason {
     MemTable = 4,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
 pub enum DBMemTableType {
     InlineSkipList = 0,

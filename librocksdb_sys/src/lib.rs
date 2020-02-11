@@ -379,6 +379,14 @@ pub enum DBBackgroundErrorReason {
     MemTable = 4,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum DBMemTableType {
+    InlineSkipList = 0,
+    DoublySkipList = 1,
+    PrefixHashArray = 2,
+}
+
 pub unsafe fn error_message(ptr: *mut c_char) -> String {
     let c_str = CStr::from_ptr(ptr);
     let s = format!("{}", c_str.to_string_lossy());

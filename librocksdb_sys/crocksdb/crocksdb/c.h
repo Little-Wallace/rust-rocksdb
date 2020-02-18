@@ -622,6 +622,8 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_writebatch_delete_rangev_cf(
     const size_t* end_keys_list_sizes);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_writebatch_put_log_data(
     crocksdb_writebatch_t*, const char* blob, size_t len);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_writebatch_append(
+    crocksdb_writebatch_t*, const char*, size_t);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_writebatch_iterate(
     crocksdb_writebatch_t*, void* state,
     void (*put)(void*, const char* k, size_t klen, const char* v, size_t vlen),

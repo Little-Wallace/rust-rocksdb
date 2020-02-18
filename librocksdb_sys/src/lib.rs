@@ -1070,6 +1070,10 @@ extern "C" {
         end_key: *const u8,
         end_keylen: size_t,
     );
+    pub fn crocksdb_writebatch_append(
+        batch: *mut DBWriteBatch,
+        data: *const u8,
+        dlen: size_t);
     pub fn crocksdb_writebatch_iterate(
         batch: *mut DBWriteBatch,
         state: *mut c_void,

@@ -1692,6 +1692,12 @@ void crocksdb_writebatch_put_log_data(
   b->rep.PutLogData(Slice(blob, len));
 }
 
+void crocksdb_writebatch_append(
+    crocksdb_writebatch_t* b,
+    const char* data, size_t dlen) {
+  b->rep.Append(data, dlen);
+}
+
 void crocksdb_writebatch_iterate(
     crocksdb_writebatch_t* b,
     void* state,

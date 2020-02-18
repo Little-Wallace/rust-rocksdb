@@ -1876,6 +1876,21 @@ impl WriteBatch {
         }
         Ok(())
     }
+
+    pub fn append(&mut self, data: &[u8]) -> Result<(), String> {
+         unsafe {
+            crocksdb_ffi::crocksdb_writebatch_append(self.inner, data.as_ptr(), data.len() as size_t);
+        }
+        Ok(())
+    }
+    pub fn data(&self) -> &[u8] {
+        let mut len: size_t = 0;
+        let len_ptr: *mut size_t = &mut len;
+        unsafe {
+            let ptr = crocksdb_ffi::crocksdb_writebatch_data(self.inner, len_ptr);
+            slice::from_raw_parts(ptr, len as usize)
+        }
+    }
 }
 
 impl Drop for WriteBatch {

@@ -26,7 +26,7 @@ use rocksdb_options::{
     IngestExternalFileOptions, LRUCacheOptions, ReadOptions, RestoreOptions, UnsafeSnap,
     WriteOptions,
 };
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::{self, Debug, Formatter};
 use std::io;
@@ -148,7 +148,7 @@ impl MapProperty {
 
 pub struct DB {
     inner: *mut DBInstance,
-    cfs_by_name: BTreeMap<String, usize>,
+    cfs_by_name: HashMap<String, usize>,
     cfs: Vec<Option<(String, CFHandle)>>,
     path: String,
     opts: DBOptions,
@@ -708,7 +708,7 @@ impl DB {
             }
         }
         let mut cfs = Vec::with_capacity(names.len());
-        let mut cfs_by_name = BTreeMap::new();
+        let mut cfs_by_name = HashMap::new();
         for (name, h) in names.into_iter().zip(cf_handles) {
             let handle = CFHandle { inner: h };
             let idx = handle.id() as usize;

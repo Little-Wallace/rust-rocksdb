@@ -1159,7 +1159,7 @@ extern "C" {
         db: *mut DBInstance,
         writeopts: *const DBWriteOptions,
         batch: *mut DBWriteBatch,
-        cb: unsafe extern "C" fn(),
+        cb: unsafe extern "C" fn(*mut c_void),
         state: *mut c_void,
         err: *mut *mut c_char,
     );

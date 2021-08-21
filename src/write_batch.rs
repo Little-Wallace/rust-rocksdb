@@ -115,15 +115,16 @@ impl WriteBatch {
                 cfs,
                 cb_ptr: cb_ptr as *mut _ as *mut c_void,
             });
-            let state = Box::into_raw(cb_proxy) as *mut c_void;
+            let state = Box::into_raw(cb_proxy);
             crocksdb_ffi::crocksdb_writebatch_iterate_cf(
                 self.inner,
-                state,
+                state as *mut c_void,
                 put_fn,
                 put_cf_fn,
                 delete_fn,
                 delete_cf_fn,
             );
+            let _proxy = Box::from_raw(state);
         }
     }
 

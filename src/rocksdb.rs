@@ -820,6 +820,25 @@ impl DB {
         Ok(())
     }
 
+    pub fn write_with_callback(
+        &self,
+        batch: &WriteBatch,
+        writeopts: &WriteOptions,
+        f: Box<dyn FnOnce()>,
+    ) -> Result<(), String> {
+        extern "C" fn callback(ctx: *mut c_void) {
+            unsafe {
+                let cb = ctx as *mut dyn FnOnce();
+                cb();
+            }
+        }
+        unsafe {
+            let state = Box::into_raw(f);
+            ffi_try!(crocksdb_write_with_callback(self.inner, writeopts.inner, batch.inner, callback, state as *c_void));
+        }
+        Ok(())
+    }
+
     pub fn write(&self, batch: &WriteBatch) -> Result<(), String> {
         self.write_opt(batch, &WriteOptions::new())
     }

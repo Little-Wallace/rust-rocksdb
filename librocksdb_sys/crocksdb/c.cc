@@ -1069,6 +1069,29 @@ void crocksdb_write_multi_batch(crocksdb_t* db,
   SaveError(errptr, db->rep->MultiBatchWrite(options->rep, std::move(ws)));
 }
 
+class AtomicFlagWriteCallback : public WriteCallback {
+ public:
+  void (*cb)();
+  void* state;
+  ~AtomicFlagWriteCallback() {}
+  Status Callback(DB* db) override {
+    (*cb)(state);
+    return Status::OK();
+  }
+  bool AllowWriteBatching() override { return true; }
+};
+
+void crocksdb_write_with_callback(crocksdb_t* db,
+                                  const crocksdb_writeoptions_t* options,
+                                  crocksdb_writebatch_t* batch,
+                                  void (*callback)(void*), void* state,
+                                  char** errptr) {
+  AtomicFlagWriteCallback cb;
+  cb.cb = callback;
+  cb.state = state;
+  SaveError(errptr, db->rep->WriteWithCallback(options->rep, &batch->rep, &cb));
+)
+
 char* crocksdb_get(crocksdb_t* db, const crocksdb_readoptions_t* options,
                    const char* key, size_t keylen, size_t* vallen,
                    char** errptr) {

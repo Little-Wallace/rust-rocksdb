@@ -1155,6 +1155,14 @@ extern "C" {
         batch: *mut DBWriteBatch,
         err: *mut *mut c_char,
     );
+    pub fn crocksdb_write_with_callback(
+        db: *mut DBInstance,
+        writeopts: *const DBWriteOptions,
+        batch: *mut DBWriteBatch,
+        cb: unsafe extern "C" fn(),
+        state: *mut c_void,
+        err: *mut *mut c_char,
+    );
     pub fn crocksdb_write_multi_batch(
         db: *mut DBInstance,
         writeopts: *const DBWriteOptions,

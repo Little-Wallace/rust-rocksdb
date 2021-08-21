@@ -19,6 +19,8 @@
 #include "rocksdb/comparator.h"
 #include "rocksdb/convenience.h"
 #include "rocksdb/db.h"
+#include "db/write_callback.h"
+#include "db/db_impl/db_impl.h"
 #include "rocksdb/encryption.h"
 #include "rocksdb/env.h"
 #include "rocksdb/env_encryption.h"
@@ -147,13 +149,13 @@ using rocksdb::UserCollectedProperties;
 using rocksdb::WALRecoveryMode;
 using rocksdb::WritableFile;
 using rocksdb::WriteBatch;
+using rocksdb::WriteCallback;
 using rocksdb::WriteOptions;
 using rocksdb::WriteStallCondition;
 using rocksdb::WriteStallInfo;
 
 using rocksdb::BlockBasedTableFactory;
 using rocksdb::BottommostLevelCompaction;
-using rocksdb::ColumnFamilyData;
 using rocksdb::ColumnFamilyHandleImpl;
 using rocksdb::ColumnFamilyMetaData;
 using rocksdb::CompactionOptions;
@@ -1071,7 +1073,7 @@ void crocksdb_write_multi_batch(crocksdb_t* db,
 
 class AtomicFlagWriteCallback : public WriteCallback {
  public:
-  void (*cb)();
+  void (*cb)(void*);
   void* state;
   ~AtomicFlagWriteCallback() {}
   Status Callback(DB* db) override {
@@ -1089,8 +1091,8 @@ void crocksdb_write_with_callback(crocksdb_t* db,
   AtomicFlagWriteCallback cb;
   cb.cb = callback;
   cb.state = state;
-  SaveError(errptr, db->rep->WriteWithCallback(options->rep, &batch->rep, &cb));
-)
+  SaveError(errptr, reinterpret_cast<DBImpl*>(db->rep)->WriteWithCallback(options->rep, &batch->rep, &cb));
+}
 
 char* crocksdb_get(crocksdb_t* db, const crocksdb_readoptions_t* options,
                    const char* key, size_t keylen, size_t* vallen,

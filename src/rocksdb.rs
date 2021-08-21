@@ -820,21 +820,33 @@ impl DB {
         Ok(())
     }
 
-    pub fn write_with_callback(
+    pub fn write_with_callback<F: FnMut()>(
         &self,
         batch: &WriteBatch,
         writeopts: &WriteOptions,
-        f: Box<dyn FnOnce()>,
+        mut cb_fn: F,
     ) -> Result<(), String> {
-        extern "C" fn callback(ctx: *mut c_void) {
+        struct WriteCallbackProxy {
+            callback: Box<dyn FnMut()>,
+        }
+        extern "C" fn callback(state: *mut c_void) {
             unsafe {
-                let cb = ctx as *mut dyn FnOnce();
-                cb();
+                let proxy: &mut WriteCallbackProxy = &mut *(state as *mut WriteCallbackProxy);
+                proxy.callback();
             }
         }
         unsafe {
-            let state = Box::into_raw(f);
-            ffi_try!(crocksdb_write_with_callback(self.inner, writeopts.inner, batch.inner, callback, state as *c_void));
+            let proxy = Box::new(WriteCallbackProxy {
+                callback: Box::new(cb_fn),
+            });
+            let state = Box::into_raw(proxy) as *mut c_void;
+            ffi_try!(crocksdb_write_with_callback(
+                self.inner,
+                writeopts.inner,
+                batch.inner,
+                callback,
+                state
+            ));
         }
         Ok(())
     }

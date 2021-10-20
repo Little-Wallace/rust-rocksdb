@@ -176,6 +176,8 @@ pub struct DBSstPartitionerFactory(c_void);
 pub struct DBWriteBatchIterator(c_void);
 #[repr(C)]
 pub struct DBFileSystemInspectorInstance(c_void);
+#[repr(C)]
+pub struct DBWriteBatchWriter(c_void);
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
@@ -1162,6 +1164,14 @@ extern "C" {
         batchlen: size_t,
         err: *mut *mut c_char,
     );
+    pub fn crocksdb_prepare_writer(db: *mut DBInstance, writer: *mut DBWriteBatchWriter);
+    pub fn crocksdb_submit_writer(
+        db: *mut DBInstance,
+        writeopts: *const DBWriteOptions,
+        writer: *mut DBWriteBatchWriter,
+        err: *mut *mut c_char,
+    );
+
     pub fn crocksdb_writebatch_create() -> *mut DBWriteBatch;
     pub fn crocksdb_writebatch_create_with_capacity(cap: size_t) -> *mut DBWriteBatch;
     pub fn crocksdb_writebatch_create_from(rep: *const u8, size: size_t) -> *mut DBWriteBatch;
@@ -1305,6 +1315,12 @@ extern "C" {
     ) -> *mut u8;
     pub fn crocksdb_writebatch_iterator_value_type(it: *mut DBWriteBatchIterator) -> DBValueType;
     pub fn crocksdb_writebatch_iterator_column_family_id(it: *mut DBWriteBatchIterator) -> u32;
+    pub fn crocksdb_db_writer_create(
+        writeopts: *const DBWriteOptions,
+        batch: *const *mut DBWriteBatch,
+        batchlen: size_t,
+    ) -> *mut DBWriteBatchWriter;
+    pub fn crocksdb_db_writer_destroy(writer: *mut DBWriteBatchWriter);
     // Comparator
     pub fn crocksdb_options_set_comparator(options: *mut Options, cb: *mut DBComparator);
     pub fn crocksdb_comparator_create(

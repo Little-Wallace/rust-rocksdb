@@ -160,6 +160,7 @@ typedef struct crocksdb_writestallinfo_t crocksdb_writestallinfo_t;
 typedef struct crocksdb_writestallcondition_t crocksdb_writestallcondition_t;
 typedef struct crocksdb_map_property_t crocksdb_map_property_t;
 typedef struct crocksdb_writebatch_iterator_t crocksdb_writebatch_iterator_t;
+typedef struct crocksdb_writebatch_writer_t crocksdb_writebatch_writer_t;
 
 typedef enum crocksdb_sst_partitioner_result_t {
   kNotRequired = 0,
@@ -384,6 +385,11 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_write(
 extern C_ROCKSDB_LIBRARY_API void crocksdb_write_multi_batch(
     crocksdb_t* db, const crocksdb_writeoptions_t* options,
     crocksdb_writebatch_t** batches, size_t batch_size, char** errptr);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_prepare_writer(
+    crocksdb_t* db, crocksdb_writebatch_writer_t* writer);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_submit_writer(
+    crocksdb_t* db, const crocksdb_writeoptions_t* options,
+    crocksdb_writebatch_writer_t* writer, char** errptr);
 
 /* Returns NULL if not found.  A malloc()ed array otherwise.
    Stores the length of the array in *vallen. */
@@ -712,6 +718,13 @@ extern C_ROCKSDB_LIBRARY_API int crocksdb_writebatch_iterator_value_type(
 extern C_ROCKSDB_LIBRARY_API uint32_t
 crocksdb_writebatch_iterator_column_family_id(
     crocksdb_writebatch_iterator_t* it);
+
+/* WriteThread::Writer */
+extern C_ROCKSDB_LIBRARY_API crocksdb_writebatch_writer_t*
+crocksdb_db_writer_create(const crocksdb_writeoptions_t* options,
+                          crocksdb_writebatch_t** batches, size_t batch_size);
+extern C_ROCKSDB_LIBRARY_API void crocksdb_db_writer_destroy(
+    crocksdb_writebatch_writer_t* writer);
 
 /* Block based table options */
 

@@ -14,6 +14,7 @@
 #include <limits>
 
 #include "db/column_family.h"
+#include "db/db_impl/db_impl.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/comparator.h"
@@ -153,11 +154,11 @@ using rocksdb::WriteStallInfo;
 
 using rocksdb::BlockBasedTableFactory;
 using rocksdb::BottommostLevelCompaction;
-using rocksdb::ColumnFamilyData;
 using rocksdb::ColumnFamilyHandleImpl;
 using rocksdb::ColumnFamilyMetaData;
 using rocksdb::CompactionOptions;
 using rocksdb::CompactionReason;
+using rocksdb::DBWriter;
 using rocksdb::DecodeFixed32;
 using rocksdb::DecodeFixed64;
 using rocksdb::ExternalSstFilePropertyNames;
@@ -679,6 +680,13 @@ struct crocksdb_file_system_inspector_t {
   std::shared_ptr<FileSystemInspector> rep;
 };
 
+struct crocksdb_writebatch_writer_t {
+  DBWriter rep;
+  crocksdb_writebatch_writer_t(const WriteOptions& opts,
+                               std::vector<WriteBatch*>&& updates)
+      : rep(opts, std::move(updates)) {}
+};
+
 static bool SaveError(char** errptr, const Status& s) {
   assert(errptr != nullptr);
   if (s.ok()) {
@@ -1067,6 +1075,32 @@ void crocksdb_write_multi_batch(crocksdb_t* db,
     ws.push_back(&batches[i]->rep);
   }
   SaveError(errptr, db->rep->MultiBatchWrite(options->rep, std::move(ws)));
+}
+
+crocksdb_writebatch_writer_t* crocksdb_db_writer_create(
+    const crocksdb_writeoptions_t* options, crocksdb_writebatch_t** batches,
+    size_t batch_size) {
+  std::vector<WriteBatch*> ws;
+  for (size_t i = 0; i < batch_size; i++) {
+    ws.push_back(&batches[i]->rep);
+  }
+  return new crocksdb_writebatch_writer_t(options->rep, std::move(ws));
+}
+
+void crocksdb_db_writer_destroy(crocksdb_writebatch_writer_t* writer) {
+  delete writer;
+}
+
+void crocksdb_prepare_writer(crocksdb_t* db,
+                             crocksdb_writebatch_writer_t* writer) {
+  db->rep->Prepare(&writer->rep);
+}
+
+void crocksdb_submit_writer(crocksdb_t* db,
+                            const crocksdb_writeoptions_t* options,
+                            crocksdb_writebatch_writer_t* writer,
+                            char** errptr) {
+  SaveError(errptr, db->rep->Submit(options->rep, &writer->rep));
 }
 
 char* crocksdb_get(crocksdb_t* db, const crocksdb_readoptions_t* options,

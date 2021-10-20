@@ -82,6 +82,7 @@ pub use rocksdb::Kv;
 
 mod compaction_filter;
 pub mod comparator;
+mod db_writer;
 #[cfg(feature = "encryption")]
 mod encryption;
 mod event_listener;

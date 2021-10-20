@@ -38,6 +38,7 @@ use std::str::from_utf8;
 use std::sync::Arc;
 use std::{fs, ptr, slice};
 
+use db_writer::WriteBatchWriter;
 #[cfg(feature = "encryption")]
 use encryption::{DBEncryptionKeyManager, EncryptionKeyManager};
 use file_system::{DBFileSystemInspector, FileSystemInspector};
@@ -828,6 +829,23 @@ impl DB {
         let mut wo = WriteOptions::new();
         wo.disable_wal(true);
         self.write_opt(batch, &wo)
+    }
+
+    pub fn prepare_writer<'a>(&self, writer: &mut WriteBatchWriter<'a>) {
+        unsafe {
+            crocksdb_ffi::crocksdb_prepare_writer(self.inner, writer.inner);
+        }
+    }
+
+    pub fn submit_writer<'a>(
+        &self,
+        writer: WriteBatchWriter<'a>,
+        opts: &WriteOptions,
+    ) -> Result<(), String> {
+        unsafe {
+            ffi_try!(crocksdb_submit_writer(self.inner, opts.inner, writer.inner));
+        }
+        Ok(())
     }
 
     pub fn get_opt(&self, key: &[u8], readopts: &ReadOptions) -> Result<Option<DBVector>, String> {
@@ -3702,5 +3720,28 @@ mod test {
         ingest_opt.move_files(true);
         db.ingest_external_file_cf(db.cf_handle("default").unwrap(), &ingest_opt, &[p1, p2])
             .unwrap();
+    }
+
+    #[test]
+    fn test_db_writer() {
+        let mut opts = DBOptions::new();
+        opts.create_if_missing(true);
+        opts.enable_multi_batch_write(true);
+        let path = tempdir_with_prefix("_rust_rocksdb_multi_batch");
+
+        let db = DB::open(opts, path.path().to_str().unwrap()).unwrap();
+        let cf = db.cf_handle("default").unwrap();
+        let wb = WriteBatch::new();
+        for s in &[b"ab", b"cd", b"ef"] {
+            wb.put_cf(cf, s.to_vec().as_slice(), b"a").unwrap();
+        }
+        let mut writer = WriteBatchWriter::from_writebatch(&WriteOptions::new(), &wb);
+        db.prepare_writer(&mut writer);
+        db.submit_writer(writer, &WriteOptions::new()).unwrap();
+        for s in &[b"ab", b"cd", b"ef"] {
+            let v = db.get_cf(cf, s.to_vec().as_slice()).unwrap();
+            assert!(v.is_some());
+            assert_eq!(v.unwrap().to_utf8().unwrap(), "a");
+        }
     }
 }

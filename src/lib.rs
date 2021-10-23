@@ -76,6 +76,7 @@ pub use table_properties_collector::TablePropertiesCollector;
 pub use table_properties_collector_factory::TablePropertiesCollectorFactory;
 pub use titan::{TitanBlobIndex, TitanDBOptions};
 pub use write_batch::{WriteBatch, WriteBatchIter, WriteBatchRef};
+pub use db_writer::WriteBatchWriter;
 
 #[allow(deprecated)]
 pub use rocksdb::Kv;

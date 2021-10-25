@@ -33,6 +33,7 @@ pub use compaction_filter::{
     CompactionFilterFactoryHandle, CompactionFilterHandle, CompactionFilterValueType,
     DBCompactionFilter,
 };
+pub use db_writer::WriteBatchWriter;
 #[cfg(feature = "encryption")]
 pub use encryption::{DBEncryptionMethod, EncryptionKeyManager, FileEncryptionInfo};
 pub use event_listener::{
@@ -76,7 +77,6 @@ pub use table_properties_collector::TablePropertiesCollector;
 pub use table_properties_collector_factory::TablePropertiesCollectorFactory;
 pub use titan::{TitanBlobIndex, TitanDBOptions};
 pub use write_batch::{WriteBatch, WriteBatchIter, WriteBatchRef};
-pub use db_writer::WriteBatchWriter;
 
 #[allow(deprecated)]
 pub use rocksdb::Kv;

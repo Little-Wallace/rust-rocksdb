@@ -831,15 +831,15 @@ impl DB {
         self.write_opt(batch, &wo)
     }
 
-    pub fn prepare_writer<'a>(&self, writer: &mut WriteBatchWriter<'a>) {
+    pub fn prepare_writer(&self, writer: &mut WriteBatchWriter) {
         unsafe {
             crocksdb_ffi::crocksdb_prepare_writer(self.inner, writer.inner);
         }
     }
 
-    pub fn submit_writer<'a>(
+    pub fn submit_writer(
         &self,
-        writer: WriteBatchWriter<'a>,
+        writer: WriteBatchWriter,
         opts: &WriteOptions,
     ) -> Result<(), String> {
         unsafe {

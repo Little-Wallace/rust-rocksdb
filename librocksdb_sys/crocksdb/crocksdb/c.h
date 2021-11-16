@@ -224,6 +224,10 @@ typedef struct crocksdb_encryption_key_manager_t
 typedef struct crocksdb_file_system_inspector_t
     crocksdb_file_system_inspector_t;
 
+typedef struct crocksdb_compactionservice_job_info_t
+    crocksdb_compactionservice_job_info_t;
+typedef struct crocksdb_compactionservice_t crocksdb_compactionservice_t;
+
 /* DB operations */
 
 extern C_ROCKSDB_LIBRARY_API crocksdb_t* crocksdb_open(
@@ -1462,6 +1466,35 @@ crocksdb_mergeoperator_create(
     const char* (*name)(void*));
 extern C_ROCKSDB_LIBRARY_API void crocksdb_mergeoperator_destroy(
     crocksdb_mergeoperator_t*);
+
+/* Remote Compaction Service */
+extern C_ROCKSDB_LIBRARY_API crocksdb_compactionservice_t*
+crocksdb_compactionservice_create(
+    void* state, void (*destructor)(void*),
+    int (*start_)(void*, crocksdb_compactionservice_job_info_t* info,
+                  const char* input, size_t input_length),
+    int (*wait_)(void*, crocksdb_compactionservice_job_info_t* info,
+                 char** output, size_t* output_length),
+    const char* (*name)(void*));
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_compactionservice_destroy(
+    crocksdb_compactionservice_t* filter);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_job_info_get_db_name(
+    crocksdb_compactionservice_job_info_t* info);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_job_info_get_db_id(
+    crocksdb_compactionservice_job_info_t* info);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_job_info_get_db_session_id(
+    crocksdb_compactionservice_job_info_t* info);
+
+extern C_ROCKSDB_LIBRARY_API uint64_t
+crocksdb_compactionservice_job_info_get_job_id(
+    crocksdb_compactionservice_job_info_t* info, size_t* key_length);
 
 /* Read options */
 

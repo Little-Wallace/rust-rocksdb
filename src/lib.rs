@@ -90,6 +90,7 @@ pub mod logger;
 pub mod merge_operator;
 mod metadata;
 mod perf_context;
+mod remote_compaction_service;
 pub mod rocksdb;
 pub mod rocksdb_options;
 mod slice_transform;

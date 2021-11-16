@@ -177,7 +177,10 @@ pub struct DBWriteBatchIterator(c_void);
 #[repr(C)]
 pub struct DBFileSystemInspectorInstance(c_void);
 #[repr(C)]
-pub struct DBWriteBatchWriter(c_void);
+pub struct DBCompactionServiceJobInfo(c_void);
+#[repr(C)]
+pub struct DBCompactionService(c_void);
+
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
@@ -1137,6 +1140,37 @@ extern "C" {
     ) -> *mut DBMergeOperator;
     pub fn crocksdb_mergeoperator_destroy(mo: *mut DBMergeOperator);
     pub fn crocksdb_options_set_merge_operator(options: *mut Options, mo: *mut DBMergeOperator);
+    // Compaction Service
+    pub fn crocksdb_compactionservice_create(
+        state: *mut c_void,
+        destructor: extern "C" fn(*mut c_void),
+        start: extern "C" fn(
+            state: *mut c_void,
+            info: *const DBCompactionServiceJobInfo,
+            input: *const u8,
+            input_len: size_t,
+        ) -> i32,
+        wait: extern "C" fn(
+            state: *mut c_void,
+            info: *const DBCompactionServiceJobInfo,
+            output: *mut *const u8,
+            input_len: *mut size_t,
+        ) -> i32,
+        name: extern "C" fn(*mut c_void) -> *const c_char,
+    ) -> *mut DBCompactionService;
+    pub fn crocksdb_compactionservice_destroy(service:  *mut DBCompactionService);
+    pub fn crocksdb_compactionservice_job_info_get_db_name(
+        info: *const DBCompactionServiceJobInfo,
+    ) -> *const c_char;
+    pub fn crocksdb_compactionservice_job_info_get_db_id(
+        info: *const DBCompactionServiceJobInfo,
+    ) -> *const c_char;
+    pub fn crocksdb_compactionservice_job_info_get_db_session_id(
+        info: *const DBCompactionServiceJobInfo,
+    ) -> *const c_char;
+    pub fn crocksdb_compactionservice_job_info_get_job_id(
+        info: *const DBCompactionServiceJobInfo,
+    ) -> u64;
     // Iterator
     pub fn crocksdb_iter_destroy(iter: *mut DBIterator);
     pub fn crocksdb_iter_valid(iter: *const DBIterator) -> bool;
@@ -1161,13 +1195,6 @@ extern "C" {
         writeopts: *const DBWriteOptions,
         batch: *const *mut DBWriteBatch,
         batchlen: size_t,
-        err: *mut *mut c_char,
-    );
-    pub fn crocksdb_prepare_writer(db: *mut DBInstance, writer: *mut DBWriteBatchWriter);
-    pub fn crocksdb_submit_writer(
-        db: *mut DBInstance,
-        writeopts: *const DBWriteOptions,
-        writer: *mut DBWriteBatchWriter,
         err: *mut *mut c_char,
     );
 
@@ -1314,12 +1341,6 @@ extern "C" {
     ) -> *mut u8;
     pub fn crocksdb_writebatch_iterator_value_type(it: *mut DBWriteBatchIterator) -> DBValueType;
     pub fn crocksdb_writebatch_iterator_column_family_id(it: *mut DBWriteBatchIterator) -> u32;
-    pub fn crocksdb_db_writer_create(
-        writeopts: *const DBWriteOptions,
-        batch: *const *mut DBWriteBatch,
-        batchlen: size_t,
-    ) -> *mut DBWriteBatchWriter;
-    pub fn crocksdb_db_writer_destroy(writer: *mut DBWriteBatchWriter);
     // Comparator
     pub fn crocksdb_options_set_comparator(options: *mut Options, cb: *mut DBComparator);
     pub fn crocksdb_comparator_create(

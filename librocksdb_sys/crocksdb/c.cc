@@ -683,7 +683,63 @@ struct crocksdb_file_system_inspector_t {
   std::shared_ptr<FileSystemInspector> rep;
 };
 
-static bool SaveError(char** errptr, const Status& s) {
+struct crocksdb_compactionservice_job_info_t {
+  CompactionServiceJobInfo rep;
+}
+
+struct crocksdb_compactionservice_t : public CompactionService {
+  void* state_;
+  void (*destructor_)(void*);
+  int (*start_)(void*, crocksdb_compactionservice_job_info_t* info,
+                const char* input, size_t input_length);
+  int (*wait_)(void*, crocksdb_compactionservice_job_info_t* info,
+               char** output, size_t* output_length);
+
+  const char* (*name_)(void*);
+  static const char* kClassName() { return "RemoteCompactionService"; }
+  const char* Name() const override { return kClassName(); }
+  virtual ~crocksdb_compactionservice_t() { (*destructor_)(state_); }
+  CompactionServiceJobStatus StartV2(
+      const CompactionServiceJobInfo& info,
+      const std::string& compaction_service_input) override {
+    crocksdb_compactionservice_job_info_t* info_ptr =
+        new crocksdb_compactionservice_job_info_t;
+    info_ptr->rep = info;
+    int ret = (*start_)(state_, info_ptr, compaction_service_input.data(),
+                        compaction_service_input.size());
+    delete info_ptr;
+    if (ret == 0) {
+      return CompactionServiceJobStatus::kSuccess;
+    } else if (ret == 1) {
+      return CompactionServiceJobStatus::kFailure;
+    } else {
+      return CompactionServiceJobStatus::kUseLocal;
+    }
+  }
+  CompactionServiceJobStatus WaitForCompleteV2(
+      const CompactionServiceJobInfo& info,
+      std::string* compaction_service_result) override {
+    crocksdb_compactionservice_job_info_t* info_ptr =
+        new crocksdb_compactionservice_job_info_t;
+    info_ptr->rep = info;
+    char* output = nullptr;
+    size_t output_length = 0;
+    int ret = (*wait_)(state_, info_ptr, &output, &output_length);
+    delete info_ptr;
+    if (ret == 0) {
+      compaction_service_result->assign(output, output_length);
+      free(output);
+      return CompactionServiceJobStatus::kSuccess;
+    } else if (ret == 1) {
+      return CompactionServiceJobStatus::kFailure;
+    } else {
+      return CompactionServiceJobStatus::kUseLocal;
+    }
+  }
+}
+
+static bool
+SaveError(char** errptr, const Status& s) {
   assert(errptr != nullptr);
   if (s.ok()) {
     return false;
@@ -3614,6 +3670,46 @@ crocksdb_mergeoperator_t* crocksdb_mergeoperator_create(
   result->delete_value_ = delete_value;
   result->name_ = name;
   return result;
+}
+
+crocksdb_compactionservice_t* crocksdb_compactionservice_create(
+    void* state, void (*destructor)(void*),
+    int (*start_)(void*, crocksdb_compactionservice_job_info_t* info,
+                  const char* input, size_t input_length),
+    int (*wait_)(void*, crocksdb_compactionservice_job_info_t* info,
+                 char** output, size_t* output_length),
+    const char* (*name)(void*)) {
+  crocksdb_compactionservice_t* result = new crocksdb_compactionservice_t;
+  result->state_ = state;
+  result->destructor_ = destructor;
+  result->start_ = start;
+  result->wait_ = wait;
+  result->name_ = name;
+  return result;
+}
+
+void crocksdb_compactionservice_destroy(crocksdb_compactionservice_t* filter) {
+  delete filter;
+}
+
+const char* crocksdb_compactionservice_job_info_get_db_name(
+    crocksdb_compactionservice_job_info_t* info) {
+  return info->rep.db_name.data();
+}
+
+const char* crocksdb_compactionservice_job_info_get_db_id(
+    crocksdb_compactionservice_job_info_t* info) {
+  return info->rep.db_id.data();
+}
+
+const char* crocksdb_compactionservice_job_info_get_db_session_id(
+    crocksdb_compactionservice_job_info_t* info) {
+  return info->rep.db_session_id.data();
+}
+
+uint64_t crocksdb_compactionservice_job_info_get_job_id(
+    crocksdb_compactionservice_job_info_t* info) {
+  return info->rep.job_id;
 }
 
 void crocksdb_mergeoperator_destroy(crocksdb_mergeoperator_t* merge_operator) {

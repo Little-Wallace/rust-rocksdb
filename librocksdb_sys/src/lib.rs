@@ -50,6 +50,8 @@ pub struct ColumnFamilyDescriptor(c_void);
 #[repr(C)]
 pub struct DBInstance(c_void);
 #[repr(C)]
+pub struct DBSecondary(c_void);
+#[repr(C)]
 pub struct DBWriteOptions(c_void);
 #[repr(C)]
 pub struct DBReadOptions(c_void);
@@ -1358,6 +1360,17 @@ extern "C" {
     pub fn crocksdb_comparator_destroy(cmp: *mut DBComparator);
 
     // Column Family
+    pub fn crocksdb_open_as_secondary(
+        options: *const Options,
+        path: *const c_char,
+        secondary: *const c_char,
+        num_column_families: c_int,
+        column_family_names: *const *const c_char,
+        column_family_options: *const *const Options,
+        column_family_handles: *const *mut DBCFHandle,
+        err: *mut *mut c_char,
+    ) -> *mut DBSecondary;
+    pub fn crocksdb_secondary_close(db: *mut DBSecondary);
     pub fn crocksdb_open_column_families(
         options: *const Options,
         path: *const c_char,

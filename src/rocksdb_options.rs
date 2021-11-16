@@ -1520,24 +1520,24 @@ impl ColumnFamilyOptions {
         unsafe { crocksdb_ffi::crocksdb_set_bottommost_compression(self.inner, c) }
     }
 
-    pub fn add_merge_operator(&mut self, name: &str, merge_fn: MergeFn) {
-        let cb = Box::new(MergeOperatorCallback {
-            name: CString::new(name.as_bytes()).unwrap(),
-            merge_fn: merge_fn,
-        });
-        let cb = Box::into_raw(cb) as *mut c_void;
-
-        unsafe {
-            let mo = crocksdb_ffi::crocksdb_mergeoperator_create(
-                cb,
-                merge_operator::destructor_callback,
-                full_merge_callback,
-                partial_merge_callback,
-                None,
-                merge_operator::name_callback,
-            );
-            crocksdb_ffi::crocksdb_options_set_merge_operator(self.inner, mo);
-        }
+    pub fn add_merge_operator(&mut self, name: &str, _: MergeFn) {
+        // let cb = Box::new(MergeOperatorCallback {
+        //     name: CString::new(name.as_bytes()).unwrap(),
+        //     merge_fn: merge_fn,
+        // });
+        // let cb = Box::into_raw(cb) as *mut c_void;
+        //
+        // unsafe {
+        //     let mo = crocksdb_ffi::crocksdb_mergeoperator_create(
+        //         cb,
+        //         merge_operator::destructor_callback,
+        //         full_merge_callback,
+        //         partial_merge_callback,
+        //         None,
+        //         merge_operator::name_callback,
+        //     );
+        //     crocksdb_ffi::crocksdb_options_set_merge_operator(self.inner, mo);
+        // }
     }
 
     pub fn add_comparator(&mut self, name: &str, compare_fn: fn(&[u8], &[u8]) -> i32) {

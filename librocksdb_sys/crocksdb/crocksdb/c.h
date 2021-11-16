@@ -72,6 +72,7 @@ extern "C" {
 
 typedef struct crocksdb_cloud_envoptions_t crocksdb_cloud_envoptions_t;
 typedef struct crocksdb_t crocksdb_t;
+typedef struct crocksdb_secondary_t crocksdb_secondary_t;
 typedef struct crocksdb_status_ptr_t crocksdb_status_ptr_t;
 typedef struct crocksdb_backup_engine_t crocksdb_backup_engine_t;
 typedef struct crocksdb_backup_engine_info_t crocksdb_backup_engine_info_t;
@@ -289,6 +290,16 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_backup_engine_info_destroy(
 
 extern C_ROCKSDB_LIBRARY_API void crocksdb_backup_engine_close(
     crocksdb_backup_engine_t* be);
+
+extern C_ROCKSDB_LIBRARY_API crocksdb_secondary_t* crocksdb_open_as_secondary(
+    const crocksdb_options_t* db_options, const char* name,
+    const char* secondary_path, int num_column_families,
+    const char** column_family_names,
+    const crocksdb_options_t** column_family_options,
+    crocksdb_column_family_handle_t** column_family_handles, char** errptr);
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_secondary_close(
+    crocksdb_secondary_t* db);
 
 extern C_ROCKSDB_LIBRARY_API crocksdb_t* crocksdb_open_column_families(
     const crocksdb_options_t* options, const char* name,

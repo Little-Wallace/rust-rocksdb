@@ -14,6 +14,7 @@
 #include <limits>
 
 #include "db/column_family.h"
+#include "db/db_impl/db_impl_secondary.h"
 #include "file/read_write_util.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/compaction_filter.h"
@@ -113,7 +114,6 @@ using rocksdb::KeyVersion;
 using rocksdb::LiveFileMetaData;
 using rocksdb::Logger;
 using rocksdb::LRUCacheOptions;
-using rocksdb::MergeOperator;
 using rocksdb::NewBloomFilterPolicy;
 using rocksdb::NewEncryptedEnv;
 using rocksdb::NewGenericRateLimiter;
@@ -163,6 +163,9 @@ using rocksdb::ColumnFamilyHandleImpl;
 using rocksdb::ColumnFamilyMetaData;
 using rocksdb::CompactionOptions;
 using rocksdb::CompactionReason;
+using rocksdb::CompactionService;
+using rocksdb::CompactionServiceJobInfo;
+using rocksdb::DBImplSecondary;
 using rocksdb::DecodeFixed32;
 using rocksdb::DecodeFixed64;
 using rocksdb::ExternalSstFilePropertyNames;
@@ -211,6 +214,9 @@ const char* block_base_table_str = "BlockBasedTable";
 
 struct crocksdb_t {
   DB* rep;
+};
+struct crocksdb_secondary_t {
+  DBImplSecondary* rep;
 };
 struct crocksdb_status_ptr_t {
   Status* rep;
@@ -524,89 +530,92 @@ struct crocksdb_filterpolicy_t : public FilterPolicy {
   }
 };
 
-struct crocksdb_mergeoperator_t : public MergeOperator {
-  void* state_;
-  void (*destructor_)(void*);
-  const char* (*name_)(void*);
-  char* (*full_merge_)(void*, const char* key, size_t key_length,
-                       const char* existing_value, size_t existing_value_length,
-                       const char* const* operands_list,
-                       const size_t* operands_list_length, int num_operands,
-                       unsigned char* success, size_t* new_value_length);
-  char* (*partial_merge_)(void*, const char* key, size_t key_length,
-                          const char* const* operands_list,
-                          const size_t* operands_list_length, int num_operands,
-                          unsigned char* success, size_t* new_value_length);
-  void (*delete_value_)(void*, const char* value, size_t value_length);
-
-  virtual ~crocksdb_mergeoperator_t() { (*destructor_)(state_); }
-
-  virtual const char* Name() const override { return (*name_)(state_); }
-
-  virtual bool FullMergeV2(const MergeOperationInput& merge_in,
-                           MergeOperationOutput* merge_out) const override {
-    size_t n = merge_in.operand_list.size();
-    std::vector<const char*> operand_pointers(n);
-    std::vector<size_t> operand_sizes(n);
-    for (size_t i = 0; i < n; i++) {
-      Slice operand(merge_in.operand_list[i]);
-      operand_pointers[i] = operand.data();
-      operand_sizes[i] = operand.size();
-    }
-
-    const char* existing_value_data = nullptr;
-    size_t existing_value_len = 0;
-    if (merge_in.existing_value != nullptr) {
-      existing_value_data = merge_in.existing_value->data();
-      existing_value_len = merge_in.existing_value->size();
-    }
-
-    unsigned char success;
-    size_t new_value_len;
-    char* tmp_new_value = (*full_merge_)(
-        state_, merge_in.key.data(), merge_in.key.size(), existing_value_data,
-        existing_value_len, &operand_pointers[0], &operand_sizes[0],
-        static_cast<int>(n), &success, &new_value_len);
-    merge_out->new_value.assign(tmp_new_value, new_value_len);
-
-    if (delete_value_ != nullptr) {
-      (*delete_value_)(state_, tmp_new_value, new_value_len);
-    } else {
-      free(tmp_new_value);
-    }
-
-    return success;
-  }
-
-  virtual bool PartialMergeMulti(const Slice& key,
-                                 const std::deque<Slice>& operand_list,
-                                 std::string* new_value,
-                                 Logger*) const override {
-    size_t operand_count = operand_list.size();
-    std::vector<const char*> operand_pointers(operand_count);
-    std::vector<size_t> operand_sizes(operand_count);
-    for (size_t i = 0; i < operand_count; ++i) {
-      Slice operand(operand_list[i]);
-      operand_pointers[i] = operand.data();
-      operand_sizes[i] = operand.size();
-    }
-
-    unsigned char success;
-    size_t new_value_len;
-    char* tmp_new_value = (*partial_merge_)(
-        state_, key.data(), key.size(), &operand_pointers[0], &operand_sizes[0],
-        static_cast<int>(operand_count), &success, &new_value_len);
-    new_value->assign(tmp_new_value, new_value_len);
-
-    if (delete_value_ != nullptr) {
-      (*delete_value_)(state_, tmp_new_value, new_value_len);
-    } else {
-      free(tmp_new_value);
-    }
-
-    return success;
-  }
-};
+// struct crocksdb_mergeoperator_t : public MergeOperator {
+//  void* state_;
+//  void (*destructor_)(void*);
+//  const char* (*name_)(void*);
+//  char* (*full_merge_)(void*, const char* key, size_t key_length,
+//                       const char* existing_value, size_t
+//                       existing_value_length, const char* const*
+//                       operands_list, const size_t* operands_list_length, int
+//                       num_operands, unsigned char* success, size_t*
+//                       new_value_length);
+//  char* (*partial_merge_)(void*, const char* key, size_t key_length,
+//                          const char* const* operands_list,
+//                          const size_t* operands_list_length, int
+//                          num_operands, unsigned char* success, size_t*
+//                          new_value_length);
+//  void (*delete_value_)(void*, const char* value, size_t value_length);
+//
+//  virtual ~crocksdb_mergeoperator_t() { (*destructor_)(state_); }
+//
+//  virtual const char* Name() const override { return (*name_)(state_); }
+//
+//  virtual bool FullMergeV2(const MergeOperationInput& merge_in,
+//                           MergeOperationOutput* merge_out) const override {
+//    size_t n = merge_in.operand_list.size();
+//    std::vector<const char*> operand_pointers(n);
+//    std::vector<size_t> operand_sizes(n);
+//    for (size_t i = 0; i < n; i++) {
+//      Slice operand(merge_in.operand_list[i]);
+//      operand_pointers[i] = operand.data();
+//      operand_sizes[i] = operand.size();
+//    }
+//
+//    const char* existing_value_data = nullptr;
+//    size_t existing_value_len = 0;
+//    if (merge_in.existing_value != nullptr) {
+//      existing_value_data = merge_in.existing_value->data();
+//      existing_value_len = merge_in.existing_value->size();
+//    }
+//
+//    unsigned char success;
+//    size_t new_value_len;
+//    char* tmp_new_value = (*full_merge_)(
+//        state_, merge_in.key.data(), merge_in.key.size(), existing_value_data,
+//        existing_value_len, &operand_pointers[0], &operand_sizes[0],
+//        static_cast<int>(n), &success, &new_value_len);
+//    merge_out->new_value.assign(tmp_new_value, new_value_len);
+//
+//    if (delete_value_ != nullptr) {
+//      (*delete_value_)(state_, tmp_new_value, new_value_len);
+//    } else {
+//      free(tmp_new_value);
+//    }
+//
+//    return success;
+//  }
+//
+//  virtual bool PartialMergeMulti(const Slice& key,
+//                                 const std::deque<Slice>& operand_list,
+//                                 std::string* new_value,
+//                                 Logger*) const override {
+//    size_t operand_count = operand_list.size();
+//    std::vector<const char*> operand_pointers(operand_count);
+//    std::vector<size_t> operand_sizes(operand_count);
+//    for (size_t i = 0; i < operand_count; ++i) {
+//      Slice operand(operand_list[i]);
+//      operand_pointers[i] = operand.data();
+//      operand_sizes[i] = operand.size();
+//    }
+//
+//    unsigned char success;
+//    size_t new_value_len;
+//    char* tmp_new_value = (*partial_merge_)(
+//        state_, key.data(), key.size(), &operand_pointers[0],
+//        &operand_sizes[0], static_cast<int>(operand_count), &success,
+//        &new_value_len);
+//    new_value->assign(tmp_new_value, new_value_len);
+//
+//    if (delete_value_ != nullptr) {
+//      (*delete_value_)(state_, tmp_new_value, new_value_len);
+//    } else {
+//      free(tmp_new_value);
+//    }
+//
+//    return success;
+//  }
+//};
 
 struct crocksdb_env_t {
   Env* rep;
@@ -927,6 +936,47 @@ crocksdb_t* crocksdb_open_column_families(
   crocksdb_t* result = new crocksdb_t;
   result->rep = db;
   return result;
+}
+
+crocksdb_secondary_t* crocksdb_open_as_secondary(
+    const crocksdb_options_t* db_options, const char* name,
+    const char* secondary_path, int num_column_families,
+    const char** column_family_names,
+    const crocksdb_options_t** column_family_options,
+    crocksdb_column_family_handle_t** column_family_handles, char** errptr) {
+  std::vector<ColumnFamilyDescriptor> column_families;
+  for (int i = 0; i < num_column_families; i++) {
+    column_families.push_back(ColumnFamilyDescriptor(
+        std::string(column_family_names[i]),
+        ColumnFamilyOptions(column_family_options[i]->rep)));
+  }
+
+  DB* db;
+  std::vector<ColumnFamilyHandle*> handles;
+  if (SaveError(errptr, DB::OpenAsSecondary(DBOptions(db_options->rep),
+                                            std::string(name),
+                                            std::string(secondary_path),
+                                            column_families, &handles, &db))) {
+    return nullptr;
+  }
+
+  for (size_t i = 0; i < handles.size(); i++) {
+    crocksdb_column_family_handle_t* c_handle =
+        new crocksdb_column_family_handle_t;
+    c_handle->rep = handles[i];
+    column_family_handles[i] = c_handle;
+  }
+  crocksdb_secondary_t* result = new crocksdb_secondary_t;
+  result->rep = dynamic_cast<DBImplSecondary*>(db);
+  if (result->rep == nullptr) {
+    return nullptr;
+  }
+  return result;
+}
+
+void crocksdb_secondary_close(crocksdb_secondary_t* db) {
+  delete db->rep;
+  delete db;
 }
 
 crocksdb_t* crocksdb_open_column_families_with_ttl(
@@ -2557,10 +2607,10 @@ void crocksdb_options_set_comparator(crocksdb_options_t* opt,
   opt->rep.comparator = cmp;
 }
 
-void crocksdb_options_set_merge_operator(
-    crocksdb_options_t* opt, crocksdb_mergeoperator_t* merge_operator) {
-  opt->rep.merge_operator = std::shared_ptr<MergeOperator>(merge_operator);
-}
+// void crocksdb_options_set_merge_operator(
+//    crocksdb_options_t* opt, crocksdb_mergeoperator_t* merge_operator) {
+//  opt->rep.merge_operator = std::shared_ptr<MergeOperator>(merge_operator);
+//}
 
 void crocksdb_options_set_create_if_missing(crocksdb_options_t* opt,
                                             unsigned char v) {
@@ -3648,29 +3698,30 @@ crocksdb_filterpolicy_t* crocksdb_filterpolicy_create_bloom(int bits_per_key) {
   return crocksdb_filterpolicy_create_bloom_format(bits_per_key, true);
 }
 
-crocksdb_mergeoperator_t* crocksdb_mergeoperator_create(
-    void* state, void (*destructor)(void*),
-    char* (*full_merge)(void*, const char* key, size_t key_length,
-                        const char* existing_value,
-                        size_t existing_value_length,
-                        const char* const* operands_list,
-                        const size_t* operands_list_length, int num_operands,
-                        unsigned char* success, size_t* new_value_length),
-    char* (*partial_merge)(void*, const char* key, size_t key_length,
-                           const char* const* operands_list,
-                           const size_t* operands_list_length, int num_operands,
-                           unsigned char* success, size_t* new_value_length),
-    void (*delete_value)(void*, const char* value, size_t value_length),
-    const char* (*name)(void*)) {
-  crocksdb_mergeoperator_t* result = new crocksdb_mergeoperator_t;
-  result->state_ = state;
-  result->destructor_ = destructor;
-  result->full_merge_ = full_merge;
-  result->partial_merge_ = partial_merge;
-  result->delete_value_ = delete_value;
-  result->name_ = name;
-  return result;
-}
+// crocksdb_mergeoperator_t* crocksdb_mergeoperator_create(
+//    void* state, void (*destructor)(void*),
+//    char* (*full_merge)(void*, const char* key, size_t key_length,
+//                        const char* existing_value,
+//                        size_t existing_value_length,
+//                        const char* const* operands_list,
+//                        const size_t* operands_list_length, int num_operands,
+//                        unsigned char* success, size_t* new_value_length),
+//    char* (*partial_merge)(void*, const char* key, size_t key_length,
+//                           const char* const* operands_list,
+//                           const size_t* operands_list_length, int
+//                           num_operands, unsigned char* success, size_t*
+//                           new_value_length),
+//    void (*delete_value)(void*, const char* value, size_t value_length),
+//    const char* (*name)(void*)) {
+//  crocksdb_mergeoperator_t* result = new crocksdb_mergeoperator_t;
+//  result->state_ = state;
+//  result->destructor_ = destructor;
+//  result->full_merge_ = full_merge;
+//  result->partial_merge_ = partial_merge;
+//  result->delete_value_ = delete_value;
+//  result->name_ = name;
+//  return result;
+//}
 
 crocksdb_compactionservice_t* crocksdb_compactionservice_create(
     void* state, void (*destructor)(void*),
@@ -3712,9 +3763,10 @@ uint64_t crocksdb_compactionservice_job_info_get_job_id(
   return info->rep.job_id;
 }
 
-void crocksdb_mergeoperator_destroy(crocksdb_mergeoperator_t* merge_operator) {
-  delete merge_operator;
-}
+// void crocksdb_mergeoperator_destroy(crocksdb_mergeoperator_t* merge_operator)
+// {
+//  delete merge_operator;
+//}
 
 crocksdb_readoptions_t* crocksdb_readoptions_create() {
   return new crocksdb_readoptions_t;

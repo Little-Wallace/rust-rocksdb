@@ -136,3 +136,10 @@ pub unsafe fn new_compaction_service_raw(
         name,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use libc::c_uchar;
+    use std::ffi::CString;
+    use std::str;
+}

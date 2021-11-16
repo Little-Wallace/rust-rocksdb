@@ -1,9 +1,9 @@
 [submodule "rocksdb"]
 	path = librocksdb_sys/rocksdb
 	url = https://github.com/Little-Wallace/rocksdb.git
-	branch = remote-compaction
+	branch = 6.25.tikv
 
 [submodule "titan"]
 	path = librocksdb_sys/libtitan_sys/titan
 	url = https://github.com/Little-Wallace/titan.git
-	branch = concurrent-apply
+	branch = remote-compaction

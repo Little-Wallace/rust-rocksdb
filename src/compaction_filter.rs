@@ -49,7 +49,6 @@ pub trait CompactionFilter {
         &mut self,
         level: usize,
         key: &[u8],
-        _seqno: u64,
         value: &[u8],
         value_type: CompactionFilterValueType,
     ) -> CompactionFilterDecision {
@@ -92,7 +91,6 @@ extern "C" fn filter(
     level: c_int,
     key: *const u8,
     key_len: size_t,
-    seqno: u64,
     value_type: CompactionFilterValueType,
     value: *const u8,
     value_len: size_t,
@@ -110,7 +108,7 @@ extern "C" fn filter(
         let filter = &mut (*(filter as *mut CompactionFilterProxy)).filter;
         let key = slice::from_raw_parts(key, key_len);
         let value = slice::from_raw_parts(value, value_len);
-        match filter.featured_filter(level as usize, key, seqno, value, value_type) {
+        match filter.featured_filter(level as usize, key, value, value_type) {
             CompactionFilterDecision::Keep => RawCompactionFilterDecision::Keep,
             CompactionFilterDecision::Remove => RawCompactionFilterDecision::Remove,
             CompactionFilterDecision::ChangeValue(new_v) => {

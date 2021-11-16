@@ -14,6 +14,7 @@
 #include <limits>
 
 #include "db/column_family.h"
+#include "file/read_write_util.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/comparator.h"
@@ -46,6 +47,7 @@
 #include "rocksdb/utilities/backupable_db.h"
 #include "rocksdb/utilities/db_ttl.h"
 #include "rocksdb/utilities/debug.h"
+#include "rocksdb/utilities/options_type.h"
 #include "rocksdb/utilities/options_util.h"
 #include "rocksdb/utilities/table_properties_collectors.h"
 #include "rocksdb/write_batch.h"
@@ -56,7 +58,6 @@
 #include "titan/db.h"
 #include "titan/options.h"
 #include "util/coding.h"
-#include "util/file_reader_writer.h"
 
 #if !defined(ROCKSDB_MAJOR) || !defined(ROCKSDB_MINOR) || \
     !defined(ROCKSDB_PATCH)
@@ -84,7 +85,6 @@ using rocksdb::CompactionOptionsFIFO;
 using rocksdb::CompactRangeOptions;
 using rocksdb::Comparator;
 using rocksdb::CompressionType;
-using rocksdb::CTREncryptionProvider;
 using rocksdb::CuckooTableOptions;
 using rocksdb::DB;
 using rocksdb::DBOptions;
@@ -98,11 +98,13 @@ using rocksdb::EventListener;
 using rocksdb::ExternalFileIngestionInfo;
 using rocksdb::ExternalSstFileInfo;
 using rocksdb::FileLock;
+using rocksdb::FileOptions;
 using rocksdb::FilterBitsBuilder;
 using rocksdb::FilterBitsReader;
 using rocksdb::FilterPolicy;
 using rocksdb::FlushJobInfo;
 using rocksdb::FlushOptions;
+using rocksdb::FSWritableFile;
 using rocksdb::HistogramData;
 using rocksdb::InfoLogLevel;
 using rocksdb::IngestExternalFileOptions;
@@ -117,6 +119,10 @@ using rocksdb::NewEncryptedEnv;
 using rocksdb::NewGenericRateLimiter;
 using rocksdb::NewLRUCache;
 using rocksdb::Options;
+using rocksdb::OptionType;
+using rocksdb::OptionTypeFlags;
+using rocksdb::OptionTypeInfo;
+using rocksdb::OptionVerificationType;
 using rocksdb::PartitionerRequest;
 using rocksdb::PartitionerResult;
 using rocksdb::PinnableSlice;
@@ -145,7 +151,6 @@ using rocksdb::TablePropertiesCollector;
 using rocksdb::TablePropertiesCollectorFactory;
 using rocksdb::UserCollectedProperties;
 using rocksdb::WALRecoveryMode;
-using rocksdb::WritableFile;
 using rocksdb::WriteBatch;
 using rocksdb::WriteOptions;
 using rocksdb::WriteStallCondition;
@@ -161,13 +166,13 @@ using rocksdb::CompactionReason;
 using rocksdb::DecodeFixed32;
 using rocksdb::DecodeFixed64;
 using rocksdb::ExternalSstFilePropertyNames;
+using rocksdb::FSRandomAccessFile;
 using rocksdb::IOStatsContext;
 using rocksdb::LDBTool;
 using rocksdb::LevelMetaData;
 using rocksdb::PerfContext;
 using rocksdb::PerfLevel;
 using rocksdb::PutFixed64;
-using rocksdb::RandomAccessFile;
 using rocksdb::RandomAccessFileReader;
 using rocksdb::RandomRWFile;
 using rocksdb::SSTDumpTool;
@@ -264,7 +269,7 @@ struct crocksdb_randomfile_t {
   RandomAccessFile* rep;
 };
 struct crocksdb_writablefile_t {
-  WritableFile* rep;
+  FSWritableFile* rep;
 };
 struct crocksdb_filelock_t {
   FileLock* rep;
@@ -397,25 +402,24 @@ struct crocksdb_compactionfilter_t : public CompactionFilter {
   void* state_;
   void (*destructor_)(void*);
   Decision (*filter_)(void*, int level, const char* key, size_t key_length,
-                      uint64_t seqno, ValueType value_type,
-                      const char* existing_value, size_t value_length,
-                      char** new_value, size_t* new_value_length,
-                      char** skip_until, size_t* skip_until_length);
+                      ValueType value_type, const char* existing_value,
+                      size_t value_length, char** new_value,
+                      size_t* new_value_length, char** skip_until,
+                      size_t* skip_until_length);
 
   const char* (*name_)(void*);
 
   virtual ~crocksdb_compactionfilter_t() { (*destructor_)(state_); }
 
-  virtual Decision FilterV3(int level, const Slice& key, uint64_t seqno,
-                            ValueType value_type, const Slice& existing_value,
-                            std::string* new_value,
+  virtual Decision FilterV2(int level, const Slice& key, ValueType value_type,
+                            const Slice& existing_value, std::string* new_value,
                             std::string* skip_until) const override {
     char* c_new_value = nullptr;
     char* c_skip_until = nullptr;
     size_t new_value_length, skip_until_length = 0;
 
     Decision result =
-        (*filter_)(state_, level, key.data(), key.size(), seqno, value_type,
+        (*filter_)(state_, level, key.data(), key.size(), value_type,
                    existing_value.data(), existing_value.size(), &c_new_value,
                    &new_value_length, &c_skip_until, &skip_until_length);
     if (result == Decision::kChangeValue) {
@@ -607,8 +611,8 @@ struct crocksdb_mergeoperator_t : public MergeOperator {
 struct crocksdb_env_t {
   Env* rep;
   bool is_default;
-  EncryptionProvider* encryption_provider;
-  BlockCipher* block_cipher;
+  std::shared_ptr<EncryptionProvider> encryption_provider;
+  std::shared_ptr<BlockCipher> block_cipher;
 };
 
 struct crocksdb_slicetransform_t : public SliceTransform {
@@ -1062,11 +1066,12 @@ void crocksdb_write_multi_batch(crocksdb_t* db,
                                 const crocksdb_writeoptions_t* options,
                                 crocksdb_writebatch_t** batches,
                                 size_t batch_size, char** errptr) {
-  std::vector<WriteBatch*> ws;
-  for (size_t i = 0; i < batch_size; i++) {
-    ws.push_back(&batches[i]->rep);
-  }
-  SaveError(errptr, db->rep->MultiBatchWrite(options->rep, std::move(ws)));
+  // std::vector<WriteBatch*> ws;
+  // for (size_t i = 0; i < batch_size; i++) {
+  //  ws.push_back(&batches[i]->rep);
+  // }
+  Status s = Status::Corruption("MultiBatchWrite not support");
+  SaveError(errptr, s);
 }
 
 char* crocksdb_get(crocksdb_t* db, const crocksdb_readoptions_t* options,
@@ -1514,10 +1519,6 @@ const char* crocksdb_iter_value(const crocksdb_iterator_t* iter, size_t* vlen) {
   Slice s = iter->rep->value();
   *vlen = s.size();
   return s.data();
-}
-
-bool crocksdb_iter_seqno(const crocksdb_iterator_t* iter, SequenceNumber* no) {
-  return iter->rep->seqno(no);
 }
 
 void crocksdb_iter_get_error(const crocksdb_iterator_t* iter, char** errptr) {
@@ -2023,10 +2024,10 @@ void crocksdb_options_set_wal_bytes_per_sync(crocksdb_options_t* opt,
 static BlockBasedTableOptions* get_block_based_table_options(
     crocksdb_options_t* opt) {
   if (opt && opt->rep.table_factory != nullptr) {
-    void* table_opt = opt->rep.table_factory->GetOptions();
-    if (table_opt &&
-        strcmp(opt->rep.table_factory->Name(), block_base_table_str) == 0) {
-      return static_cast<BlockBasedTableOptions*>(table_opt);
+    if (strcmp(opt->rep.table_factory->Name(), block_base_table_str) == 0) {
+      BlockBasedTableOptions* table_opt =
+          opt->rep.table_factory->GetOptions<BlockBasedTableOptions>();
+      return table_opt;
     }
   }
   return nullptr;
@@ -2900,12 +2901,13 @@ void crocksdb_options_set_enable_pipelined_write(crocksdb_options_t* opt,
 
 void crocksdb_options_set_enable_multi_batch_write(crocksdb_options_t* opt,
                                                    unsigned char v) {
-  opt->rep.enable_multi_thread_write = v;
+  // opt->rep.enable_multi_thread_write = v;
 }
 
 unsigned char crocksdb_options_is_enable_multi_batch_write(
     crocksdb_options_t* opt) {
-  return opt->rep.enable_multi_thread_write;
+  // return opt->rep.enable_multi_thread_write;
+  return false;
 }
 
 void crocksdb_options_set_unordered_write(crocksdb_options_t* opt,
@@ -3429,7 +3431,7 @@ table_properties_collectors
 crocksdb_compactionfilter_t* crocksdb_compactionfilter_create(
     void* state, void (*destructor)(void*),
     CompactionFilter::Decision (*filter)(
-        void*, int level, const char* key, size_t key_length, uint64_t seqno,
+        void*, int level, const char* key, size_t key_length,
         CompactionFilter::ValueType value_type, const char* existing_value,
         size_t value_length, char** new_value, size_t* new_value_length,
         char** skip_until, size_t* skip_until_length),
@@ -3902,8 +3904,8 @@ void crocksdb_cache_set_capacity(crocksdb_cache_t* cache, size_t capacity) {
 crocksdb_env_t* crocksdb_default_env_create() {
   crocksdb_env_t* result = new crocksdb_env_t;
   result->rep = Env::Default();
-  result->block_cipher = nullptr;
-  result->encryption_provider = nullptr;
+  result->block_cipher.reset();
+  result->encryption_provider.reset();
   result->is_default = true;
   return result;
 }
@@ -3911,47 +3913,69 @@ crocksdb_env_t* crocksdb_default_env_create() {
 crocksdb_env_t* crocksdb_mem_env_create() {
   crocksdb_env_t* result = new crocksdb_env_t;
   result->rep = rocksdb::NewMemEnv(Env::Default());
-  result->block_cipher = nullptr;
-  result->encryption_provider = nullptr;
+  result->block_cipher.reset();
+  result->encryption_provider.reset();
   result->is_default = false;
   return result;
 }
 
+struct CTRBlockCipherOptions {
+  static const char* kName() { return "CTRBlockCipherOptions"; }
+  size_t block_size;
+  std::string cipertext;
+};
+
+static std::unordered_map<std::string, OptionTypeInfo>
+    ctr_block_cipher_type_info = {
+        {"block_size",
+         {offsetof(struct CTRBlockCipherOptions, block_size),
+          OptionType::kSizeT, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+        {"cipertext",
+         {offsetof(struct CTRBlockCipherOptions, cipertext),
+          OptionType::kString, OptionVerificationType::kNormal,
+          OptionTypeFlags::kNone}},
+};
+
 struct CTRBlockCipher : public BlockCipher {
-  CTRBlockCipher(size_t block_size, const std::string& cipertext)
-      : block_size_(block_size), cipertext_(cipertext) {
+  CTRBlockCipher(size_t block_size, const std::string& cipertext) {
     assert(block_size == cipertext.size());
+    options_.block_size = block_size;
+    options_.cipertext = cipertext;
+    RegisterOptions(&options_, &ctr_block_cipher_type_info);
   }
 
-  virtual size_t BlockSize() { return block_size_; }
+  static const char* kClassName() { return "CTRBlockCipher"; }
+  const char* Name() const override { return kClassName(); }
 
-  virtual Status Encrypt(char* data) {
-    const char* ciper_ptr = cipertext_.c_str();
-    for (size_t i = 0; i < block_size_; i++) {
+  size_t BlockSize() override { return options_.block_size; }
+
+  Status Encrypt(char* data) override {
+    const char* ciper_ptr = options_.cipertext.c_str();
+    for (size_t i = 0; i < options_.block_size; i++) {
       data[i] = data[i] ^ ciper_ptr[i];
     }
 
     return Status::OK();
   }
 
-  virtual Status Decrypt(char* data) {
+  Status Decrypt(char* data) override {
     Encrypt(data);
     return Status::OK();
   }
 
  protected:
-  std::string cipertext_;
-  size_t block_size_;
+  CTRBlockCipherOptions options_;
 };
 
 crocksdb_env_t* crocksdb_ctr_encrypted_env_create(crocksdb_env_t* base_env,
                                                   const char* ciphertext,
                                                   size_t ciphertext_len) {
   auto result = new crocksdb_env_t;
-  result->block_cipher = new CTRBlockCipher(
+  result->block_cipher = std::make_shared<CTRBlockCipher>(
       ciphertext_len, std::string(ciphertext, ciphertext_len));
   result->encryption_provider =
-      new CTREncryptionProvider(*result->block_cipher);
+      EncryptionProvider::NewCTRProvider(result->block_cipher);
   result->rep = NewEncryptedEnv(base_env->rep, result->encryption_provider);
   result->is_default = false;
 
@@ -3983,8 +4007,8 @@ void crocksdb_env_delete_file(crocksdb_env_t* env, const char* path,
 
 void crocksdb_env_destroy(crocksdb_env_t* env) {
   if (!env->is_default) delete env->rep;
-  if (env->block_cipher) delete env->block_cipher;
-  if (env->encryption_provider) delete env->encryption_provider;
+  if (env->block_cipher) env->block_cipher.reset();
+  if (env->encryption_provider) env->encryption_provider.reset();
   delete env;
 }
 
@@ -5336,9 +5360,11 @@ struct ExternalSstFileModifier {
     }
 
     // Open External Sst File
-    std::unique_ptr<RandomAccessFile> sst_file;
+    std::unique_ptr<FSRandomAccessFile> sst_file;
     std::unique_ptr<RandomAccessFileReader> sst_file_reader;
-    status = env_->NewRandomAccessFile(file_, &sst_file, env_options_);
+    FileOptions opts(env_options_);
+    status = env_->GetFileSystem()->NewRandomAccessFile(file_, opts, &sst_file,
+                                                        nullptr);
     if (!status.ok()) {
       return status;
     }
@@ -6379,7 +6405,7 @@ void ctitandb_options_set_compression_options(ctitandb_options_t* opt,
 
 void ctitandb_options_set_gc_merge_rewrite(ctitandb_options_t* opts,
                                            unsigned char enable) {
-  opts->rep.gc_merge_rewrite = enable;
+  // opts->rep.gc_merge_rewrite = enable;
 }
 
 void ctitandb_decode_blob_index(const char* value, size_t value_size,

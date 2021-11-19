@@ -31,6 +31,9 @@ use libc::{self, c_double, c_int, c_uchar, c_void, size_t};
 use logger::{new_logger, Logger};
 use merge_operator::MergeFn;
 use merge_operator::{self, full_merge_callback, partial_merge_callback, MergeOperatorCallback};
+use remote_compaction_service::{
+    new_compaction_service, new_compaction_service_raw, RemoteCompactionService,
+};
 use rocksdb::Env;
 use rocksdb::{Cache, MemoryAllocator};
 use slice_transform::{new_slice_transform, SliceTransform};
@@ -1275,6 +1278,26 @@ impl DBOptions {
                 return None;
             }
             Some(CStr::from_ptr(memtable_name).to_str().unwrap())
+        }
+    }
+
+    pub fn set_compaction_service<S>(
+        &mut self,
+        name: S,
+        service: Box<dyn RemoteCompactionService>,
+    ) -> Result<(), String>
+    where
+        S: Into<Vec<u8>>,
+    {
+        unsafe {
+            let c_name = match CString::new(name) {
+                Ok(s) => s,
+                Err(e) => return Err(format!("failed to convert to cstring: {:?}", e)),
+            };
+            let service = new_compaction_service(c_name, service);
+            crocksdb_ffi::crocksdb_options_set_compaction_service(self.inner, service.inner);
+            std::mem::forget(service); // Deconstructor will be called after `self` is dropped.
+            Ok(())
         }
     }
 }

@@ -3392,6 +3392,10 @@ void crocksdb_options_set_atomic_flush(crocksdb_options_t* opt,
   opt->rep.atomic_flush = enable;
 }
 
+void crocksdb_options_set_compaction_service(crocksdb_options_t* opt, crocksdb_compactionservice_t* service) {
+  opt->rep.compaction_service = std::shared_ptr<CompactionService>(service);
+}
+
 unsigned char crocksdb_load_latest_options(
     const char* dbpath, crocksdb_env_t* env, crocksdb_options_t* db_options,
     crocksdb_column_family_descriptor*** cf_descs, size_t* cf_descs_len,

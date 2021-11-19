@@ -1341,7 +1341,7 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_vector_memtable_factory(
     crocksdb_options_t* opt, uint64_t reserved_bytes);
 extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_atomic_flush(
     crocksdb_options_t* opt, unsigned char enable);
-
+extern C_ROCKSDB_LIBRARY_API void crocksdb_options_set_compaction_service(crocksdb_options_t* opt, crocksdb_compactionservice_t* service);
 enum {
   compaction_by_compensated_size = 0,
   compaction_by_oldest_largestseq_first = 1,

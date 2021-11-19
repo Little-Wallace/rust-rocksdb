@@ -1,8 +1,8 @@
+use libc::{c_char, c_int, c_uchar, c_void, malloc, memcpy, size_t};
+use std::ffi::{CStr, CString};
 use std::{ptr, slice, usize};
 
 use crocksdb_ffi;
-use libc::{c_char, c_int, c_uchar, c_void, malloc, memcpy, size_t};
-use std::ffi::{CStr, CString};
 
 pub struct CompactionServiceJobInfo {
     db_name: String,
@@ -15,6 +15,14 @@ pub enum CompactionServiceJobStatus {
     Success(Vec<u8>),
     Failure,
     UseLocal,
+}
+
+pub struct CompactionServiceInput {
+    pub(crate) inner: *mut crocksdb_ffi::DBCompactionServiceInput,
+}
+
+pub struct CompactionServiceResult {
+    pub(crate) inner: *mut crocksdb_ffi::DBCompactionServiceResult,
 }
 
 pub trait RemoteCompactionService: Sync + Send {
@@ -135,6 +143,110 @@ pub unsafe fn new_compaction_service_raw(
         wait_compaction,
         name,
     )
+}
+
+impl Drop for CompactionServiceInput {
+    fn drop(&mut self) {
+        unsafe {
+            crocksdb_ffi::crocksdb_compactionservice_input_destroy(self.inner);
+        }
+    }
+}
+
+impl CompactionServiceInput {
+    pub fn new() -> CompactionServiceInput {
+        unsafe {
+            CompactionServiceInput {
+                inner: crocksdb_ffi::crocksdb_compactionservice_input_create(),
+            }
+        }
+    }
+
+    pub fn decode(&mut self, data: &[u8]) -> std::result::Result<(), String> {
+        unsafe {
+            ffi_try!(crocksdb_compactionservice_input_decode(
+                self.inner,
+                data.as_ptr(),
+                data.len() as size_t
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn encode(&self) -> std::result::Result<Vec<u8>, String> {
+        unsafe {
+            let value = ffi_try!(crocksdb_compactionservice_input_encode(self.inner));
+            Ok(CStr::from_ptr(value).to_bytes().to_vec())
+        }
+    }
+
+    pub fn get_output_file(&self, idx: usize) -> std::result::Result<&str, String> {
+        unsafe {
+            let f =
+                crocksdb_ffi::crocksdb_compactionservice_input_get_file(self.inner, idx as size_t);
+            CStr::from_ptr(f).to_str().map_err(|e| e.to_string())
+        }
+    }
+
+    pub fn get_output_files_number(&self) -> usize {
+        unsafe {
+            let n = crocksdb_ffi::crocksdb_compactionservice_input_get_files_size(self.inner);
+            n as usize
+        }
+    }
+
+    pub fn set_output_files(&self, files: Vec<String>) {
+        unsafe {
+            crocksdb_ffi::crocksdb_compactionservice_input_clear_files(self.inner);
+            for f in files {
+                let cpath = CString::new(f).unwrap();
+                crocksdb_ffi::crocksdb_compactionservice_input_add_file(self.inner, cpath.as_ptr());
+            }
+        }
+    }
+}
+
+impl Drop for CompactionServiceResult {
+    fn drop(&mut self) {
+        unsafe {
+            crocksdb_ffi::crocksdb_compactionservice_result_destroy(self.inner);
+        }
+    }
+}
+
+impl CompactionServiceResult {
+    pub fn new() -> Self {
+        unsafe {
+            CompactionServiceResult {
+                inner: crocksdb_ffi::crocksdb_compactionservice_result_create(),
+            }
+        }
+    }
+
+    pub fn encode(&self) -> std::result::Result<Vec<u8>, String> {
+        unsafe {
+            let value = ffi_try!(crocksdb_compactionservice_result_encode(self.inner));
+            Ok(CStr::from_ptr(value).to_bytes().to_vec())
+        }
+    }
+
+    pub fn set_output_file(&self, path: &str) -> std::result::Result<(), String> {
+        let cpath = match CString::new(path.as_bytes()) {
+            Ok(c) => c,
+            Err(_) => {
+                return Err(
+                    "Failed to convert path to CString when creating rocksdb info log".to_owned(),
+                );
+            }
+        };
+        unsafe {
+            crocksdb_ffi::crocksdb_compactionservice_result_set_output_path(
+                self.inner,
+                cpath.as_ptr(),
+            );
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

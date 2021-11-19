@@ -41,13 +41,14 @@ use std::{fs, ptr, slice};
 #[cfg(feature = "encryption")]
 use encryption::{DBEncryptionKeyManager, EncryptionKeyManager};
 use file_system::{DBFileSystemInspector, FileSystemInspector};
+use remote_compaction_service::{CompactionServiceInput, CompactionServiceResult};
 use table_properties::{TableProperties, TablePropertiesCollection};
 use table_properties_rc::TablePropertiesCollection as RcTablePropertiesCollection;
 use titan::TitanDBOptions;
 use write_batch::WriteBatch;
 
 pub struct CFHandle {
-    inner: *mut DBCFHandle,
+    pub(crate) inner: *mut DBCFHandle,
 }
 
 impl CFHandle {
@@ -64,7 +65,7 @@ impl Drop for CFHandle {
     }
 }
 
-fn ensure_default_cf_exists<'a>(
+pub fn ensure_default_cf_exists<'a>(
     list: &mut Vec<ColumnFamilyDescriptor<'a>>,
     ttls: &mut Vec<i32>,
     is_titan: bool,
@@ -82,7 +83,7 @@ fn ensure_default_cf_exists<'a>(
     }
 }
 
-fn split_descriptors(
+pub fn split_descriptors(
     list: Vec<ColumnFamilyDescriptor>,
     is_titan: bool,
 ) -> (Vec<&str>, Vec<ColumnFamilyOptions>) {
@@ -98,7 +99,7 @@ fn split_descriptors(
     (v1, v2)
 }
 
-fn build_cstring_list(str_list: &[&str]) -> Vec<CString> {
+pub fn build_cstring_list(str_list: &[&str]) -> Vec<CString> {
     str_list
         .iter()
         .map(|s| CString::new(s.as_bytes()).unwrap())
@@ -1963,6 +1964,30 @@ impl DB {
                 output_level
             ));
             Ok(())
+        }
+    }
+
+    pub fn compact_without_install(
+        opts: &ColumnFamilyOptions,
+        env: &Env,
+        path: &str,
+        secondary_path: &str,
+        input: &CompactionServiceInput,
+    ) -> std::result::Result<CompactionServiceResult, String> {
+        const ERR_CONVERT_PATH: &str = "Failed to convert path to CString when compact remote sst";
+        let cpath = CString::new(path.as_bytes()).map_err(|_| ERR_CONVERT_PATH.to_owned())?;
+        let cpath2 =
+            CString::new(secondary_path.as_bytes()).map_err(|_| ERR_CONVERT_PATH.to_owned())?;
+        unsafe {
+            let inner = ffi_try!(crocksdb_open_and_compact(
+                opts.inner,
+                env.inner,
+                cpath.as_ptr(),
+                cpath2.as_ptr(),
+                input.inner
+            ));
+            let output = CompactionServiceResult { inner };
+            Ok(output)
         }
     }
 }

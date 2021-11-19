@@ -14,7 +14,7 @@
 #include <limits>
 
 #include "db/column_family.h"
-#include "db/db_impl/db_impl_secondary.h"
+#include "db/compaction/compaction_job.h"
 #include "file/read_write_util.h"
 #include "rocksdb/cache.h"
 #include "rocksdb/compaction_filter.h"
@@ -158,14 +158,16 @@ using rocksdb::WriteStallInfo;
 
 using rocksdb::BlockBasedTableFactory;
 using rocksdb::BottommostLevelCompaction;
-using rocksdb::ColumnFamilyData;
 using rocksdb::ColumnFamilyHandleImpl;
 using rocksdb::ColumnFamilyMetaData;
 using rocksdb::CompactionOptions;
 using rocksdb::CompactionReason;
 using rocksdb::CompactionService;
+using rocksdb::CompactionServiceInput;
 using rocksdb::CompactionServiceJobInfo;
-using rocksdb::DBImplSecondary;
+using rocksdb::CompactionServiceJobStatus;
+using rocksdb::CompactionServiceOptionsOverride;
+using rocksdb::CompactionServiceResult;
 using rocksdb::DecodeFixed32;
 using rocksdb::DecodeFixed64;
 using rocksdb::ExternalSstFilePropertyNames;
@@ -214,9 +216,6 @@ const char* block_base_table_str = "BlockBasedTable";
 
 struct crocksdb_t {
   DB* rep;
-};
-struct crocksdb_secondary_t {
-  DBImplSecondary* rep;
 };
 struct crocksdb_status_ptr_t {
   Status* rep;
@@ -694,7 +693,19 @@ struct crocksdb_file_system_inspector_t {
 
 struct crocksdb_compactionservice_job_info_t {
   CompactionServiceJobInfo rep;
-}
+  crocksdb_compactionservice_job_info_t(const CompactionServiceJobInfo& info)
+      : rep(info) {}
+};
+
+struct crocksdb_compactionservice_input_t {
+  CompactionServiceInput rep;
+  std::string data;
+};
+
+struct crocksdb_compactionservice_result_t {
+  CompactionServiceResult rep;
+  std::string data;
+};
 
 struct crocksdb_compactionservice_t : public CompactionService {
   void* state_;
@@ -712,8 +723,7 @@ struct crocksdb_compactionservice_t : public CompactionService {
       const CompactionServiceJobInfo& info,
       const std::string& compaction_service_input) override {
     crocksdb_compactionservice_job_info_t* info_ptr =
-        new crocksdb_compactionservice_job_info_t;
-    info_ptr->rep = info;
+        new crocksdb_compactionservice_job_info_t(info);
     int ret = (*start_)(state_, info_ptr, compaction_service_input.data(),
                         compaction_service_input.size());
     delete info_ptr;
@@ -729,8 +739,7 @@ struct crocksdb_compactionservice_t : public CompactionService {
       const CompactionServiceJobInfo& info,
       std::string* compaction_service_result) override {
     crocksdb_compactionservice_job_info_t* info_ptr =
-        new crocksdb_compactionservice_job_info_t;
-    info_ptr->rep = info;
+        new crocksdb_compactionservice_job_info_t(info);
     char* output = nullptr;
     size_t output_length = 0;
     int ret = (*wait_)(state_, info_ptr, &output, &output_length);
@@ -745,10 +754,9 @@ struct crocksdb_compactionservice_t : public CompactionService {
       return CompactionServiceJobStatus::kUseLocal;
     }
   }
-}
+};
 
-static bool
-SaveError(char** errptr, const Status& s) {
+static bool SaveError(char** errptr, const Status& s) {
   assert(errptr != nullptr);
   if (s.ok()) {
     return false;
@@ -938,45 +946,31 @@ crocksdb_t* crocksdb_open_column_families(
   return result;
 }
 
-crocksdb_secondary_t* crocksdb_open_as_secondary(
-    const crocksdb_options_t* db_options, const char* name,
-    const char* secondary_path, int num_column_families,
-    const char** column_family_names,
-    const crocksdb_options_t** column_family_options,
-    crocksdb_column_family_handle_t** column_family_handles, char** errptr) {
-  std::vector<ColumnFamilyDescriptor> column_families;
-  for (int i = 0; i < num_column_families; i++) {
-    column_families.push_back(ColumnFamilyDescriptor(
-        std::string(column_family_names[i]),
-        ColumnFamilyOptions(column_family_options[i]->rep)));
+crocksdb_compactionservice_result_t* crocksdb_open_and_compact(
+    const crocksdb_options_t* cf_options, crocksdb_env_t* env, const char* name,
+    const char* secondary_path, crocksdb_compactionservice_input_t* input,
+    char** errptr) {
+  CompactionServiceOptionsOverride compact_options;
+  compact_options.env = env->rep;
+  compact_options.table_factory = cf_options->rep.table_factory;
+  if (SaveError(errptr, input->rep.Write(&input->data))) {
+    return nullptr;
   }
-
-  DB* db;
-  std::vector<ColumnFamilyHandle*> handles;
-  if (SaveError(errptr, DB::OpenAsSecondary(DBOptions(db_options->rep),
-                                            std::string(name),
-                                            std::string(secondary_path),
-                                            column_families, &handles, &db))) {
+  crocksdb_compactionservice_result_t* result =
+      new crocksdb_compactionservice_result_t;
+  if (SaveError(errptr, DB::OpenAndCompact(
+                            std::string(name), std::string(secondary_path),
+                            input->data, &result->data, compact_options))) {
+    delete result;
     return nullptr;
   }
 
-  for (size_t i = 0; i < handles.size(); i++) {
-    crocksdb_column_family_handle_t* c_handle =
-        new crocksdb_column_family_handle_t;
-    c_handle->rep = handles[i];
-    column_family_handles[i] = c_handle;
-  }
-  crocksdb_secondary_t* result = new crocksdb_secondary_t;
-  result->rep = dynamic_cast<DBImplSecondary*>(db);
-  if (result->rep == nullptr) {
+  if (SaveError(errptr,
+                CompactionServiceResult::Read(result->data, &result->rep))) {
+    delete result;
     return nullptr;
   }
   return result;
-}
-
-void crocksdb_secondary_close(crocksdb_secondary_t* db) {
-  delete db->rep;
-  delete db;
 }
 
 crocksdb_t* crocksdb_open_column_families_with_ttl(
@@ -3725,10 +3719,10 @@ crocksdb_filterpolicy_t* crocksdb_filterpolicy_create_bloom(int bits_per_key) {
 
 crocksdb_compactionservice_t* crocksdb_compactionservice_create(
     void* state, void (*destructor)(void*),
-    int (*start_)(void*, crocksdb_compactionservice_job_info_t* info,
-                  const char* input, size_t input_length),
-    int (*wait_)(void*, crocksdb_compactionservice_job_info_t* info,
-                 char** output, size_t* output_length),
+    int (*start)(void*, crocksdb_compactionservice_job_info_t* info,
+                 const char* input, size_t input_length),
+    int (*wait)(void*, crocksdb_compactionservice_job_info_t* info,
+                char** output, size_t* output_length),
     const char* (*name)(void*)) {
   crocksdb_compactionservice_t* result = new crocksdb_compactionservice_t;
   result->state_ = state;
@@ -3761,6 +3755,78 @@ const char* crocksdb_compactionservice_job_info_get_db_session_id(
 uint64_t crocksdb_compactionservice_job_info_get_job_id(
     crocksdb_compactionservice_job_info_t* info) {
   return info->rep.job_id;
+}
+
+crocksdb_compactionservice_input_t* crocksdb_compactionservice_input_create() {
+  return new crocksdb_compactionservice_input_t;
+}
+
+void crocksdb_compactionservice_input_destroy(
+    crocksdb_compactionservice_input_t* input) {
+  delete input;
+}
+
+size_t crocksdb_compactionservice_input_get_files_size(
+    crocksdb_compactionservice_input_t* input) {
+  return input->rep.input_files.size();
+}
+
+const char* crocksdb_compactionservice_input_get_file(
+    crocksdb_compactionservice_input_t* input, size_t idx) {
+  return input->rep.input_files[idx].data();
+}
+
+void crocksdb_compactionservice_input_add_file(
+    crocksdb_compactionservice_input_t* input, const char* value) {
+  std::string s(value);
+  input->rep.input_files.push_back(std::move(s));
+}
+
+void crocksdb_compactionservice_input_clear_files(
+    crocksdb_compactionservice_input_t* input) {
+  input->rep.input_files.clear();
+}
+
+const char* crocksdb_compactionservice_input_get_cf_name(
+    crocksdb_compactionservice_input_t* input) {
+  return input->rep.column_family.name.data();
+}
+
+const char* crocksdb_compactionservice_input_encode(
+    crocksdb_compactionservice_input_t* input, char** errptr) {
+  input->data.clear();
+  SaveError(errptr, input->rep.Write(&input->data));
+  return input->data.data();
+}
+
+void crocksdb_compactionservice_input_decode(
+    crocksdb_compactionservice_input_t* input, char* data, size_t data_size,
+    char** errptr) {
+  input->data.clear();
+  input->data.assign(data, data_size);
+  SaveError(errptr, CompactionServiceInput::Read(input->data, &input->rep));
+}
+
+crocksdb_compactionservice_result_t*
+crocksdb_compactionservice_result_create() {
+  return new crocksdb_compactionservice_result_t;
+}
+
+void crocksdb_compactionservice_result_destroy(
+    crocksdb_compactionservice_result_t* ret) {
+  delete ret;
+}
+
+void crocksdb_compactionservice_result_set_output_path(
+    crocksdb_compactionservice_result_t* ret, const char* path) {
+  ret->rep.output_path = std::string(path);
+}
+
+const char* crocksdb_compactionservice_result_encode(
+    crocksdb_compactionservice_result_t* ret, char** errptr) {
+  ret->data.clear();
+  SaveError(errptr, ret->rep.Write(&ret->data));
+  return ret->data.data();
 }
 
 // void crocksdb_mergeoperator_destroy(crocksdb_mergeoperator_t* merge_operator)

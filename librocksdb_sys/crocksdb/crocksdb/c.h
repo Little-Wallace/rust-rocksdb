@@ -72,7 +72,6 @@ extern "C" {
 
 typedef struct crocksdb_cloud_envoptions_t crocksdb_cloud_envoptions_t;
 typedef struct crocksdb_t crocksdb_t;
-typedef struct crocksdb_secondary_t crocksdb_secondary_t;
 typedef struct crocksdb_status_ptr_t crocksdb_status_ptr_t;
 typedef struct crocksdb_backup_engine_t crocksdb_backup_engine_t;
 typedef struct crocksdb_backup_engine_info_t crocksdb_backup_engine_info_t;
@@ -227,6 +226,13 @@ typedef struct crocksdb_file_system_inspector_t
 
 typedef struct crocksdb_compactionservice_job_info_t
     crocksdb_compactionservice_job_info_t;
+
+typedef struct crocksdb_compactionservice_input_t
+    crocksdb_compactionservice_input_t;
+
+typedef struct crocksdb_compactionservice_result_t
+    crocksdb_compactionservice_result_t;
+
 typedef struct crocksdb_compactionservice_t crocksdb_compactionservice_t;
 
 /* DB operations */
@@ -291,15 +297,12 @@ extern C_ROCKSDB_LIBRARY_API void crocksdb_backup_engine_info_destroy(
 extern C_ROCKSDB_LIBRARY_API void crocksdb_backup_engine_close(
     crocksdb_backup_engine_t* be);
 
-extern C_ROCKSDB_LIBRARY_API crocksdb_secondary_t* crocksdb_open_as_secondary(
-    const crocksdb_options_t* db_options, const char* name,
-    const char* secondary_path, int num_column_families,
-    const char** column_family_names,
-    const crocksdb_options_t** column_family_options,
-    crocksdb_column_family_handle_t** column_family_handles, char** errptr);
-
-extern C_ROCKSDB_LIBRARY_API void crocksdb_secondary_close(
-    crocksdb_secondary_t* db);
+extern C_ROCKSDB_LIBRARY_API crocksdb_compactionservice_result_t*
+crocksdb_open_and_compact(const crocksdb_options_t* cf_options,
+                          crocksdb_env_t* env, const char* name,
+                          const char* secondary_path,
+                          crocksdb_compactionservice_input_t* input,
+                          char** errptr);
 
 extern C_ROCKSDB_LIBRARY_API crocksdb_t* crocksdb_open_column_families(
     const crocksdb_options_t* options, const char* name,
@@ -1505,7 +1508,52 @@ crocksdb_compactionservice_job_info_get_db_session_id(
 
 extern C_ROCKSDB_LIBRARY_API uint64_t
 crocksdb_compactionservice_job_info_get_job_id(
-    crocksdb_compactionservice_job_info_t* info, size_t* key_length);
+    crocksdb_compactionservice_job_info_t* info);
+
+extern C_ROCKSDB_LIBRARY_API crocksdb_compactionservice_input_t*
+crocksdb_compactionservice_input_create();
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_compactionservice_input_destroy(
+    crocksdb_compactionservice_input_t* input);
+
+extern C_ROCKSDB_LIBRARY_API size_t
+crocksdb_compactionservice_input_get_files_size(
+    crocksdb_compactionservice_input_t* input);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_input_get_file(
+    crocksdb_compactionservice_input_t* input, size_t idx);
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_compactionservice_input_add_file(
+    crocksdb_compactionservice_input_t* input, const char* value);
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_compactionservice_input_clear_files(
+    crocksdb_compactionservice_input_t* input);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_input_get_cf_name(
+    crocksdb_compactionservice_input_t* input);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_input_encode(
+    crocksdb_compactionservice_input_t* input, char** errptr);
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_compactionservice_input_decode(
+    crocksdb_compactionservice_input_t* input, char* data, size_t data_size,
+    char** errptr);
+
+extern C_ROCKSDB_LIBRARY_API crocksdb_compactionservice_result_t*
+crocksdb_compactionservice_result_create();
+
+extern C_ROCKSDB_LIBRARY_API void crocksdb_compactionservice_result_destroy(
+    crocksdb_compactionservice_result_t* ret);
+extern C_ROCKSDB_LIBRARY_API void
+crocksdb_compactionservice_result_set_output_path(
+    crocksdb_compactionservice_result_t* ret, const char* path);
+
+extern C_ROCKSDB_LIBRARY_API const char*
+crocksdb_compactionservice_result_encode(
+    crocksdb_compactionservice_result_t* ret, char** errptr);
 
 /* Read options */
 

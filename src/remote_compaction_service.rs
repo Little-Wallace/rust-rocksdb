@@ -5,10 +5,10 @@ use std::{ptr, slice, usize};
 use crocksdb_ffi;
 
 pub struct CompactionServiceJobInfo {
-    db_name: String,
-    db_id: String,
-    db_session_id: String,
-    job_id: u64,
+    pub db_name: String,
+    pub db_id: String,
+    pub db_session_id: String,
+    pub job_id: u64,
 }
 
 pub enum CompactionServiceJobStatus {
@@ -175,8 +175,13 @@ impl CompactionServiceInput {
 
     pub fn encode(&self) -> std::result::Result<Vec<u8>, String> {
         unsafe {
-            let value = ffi_try!(crocksdb_compactionservice_input_encode(self.inner));
-            Ok(CStr::from_ptr(value).to_bytes().to_vec())
+            let mut val_len: size_t = 0;
+            let value_ptr = ffi_try!(crocksdb_compactionservice_input_encode(
+                self.inner,
+                &mut val_len
+            ));
+            let value: *const u8 = std::mem::transmute(value_ptr);
+            Ok(slice::from_raw_parts(value, val_len).to_vec())
         }
     }
 
@@ -225,8 +230,13 @@ impl CompactionServiceResult {
 
     pub fn encode(&self) -> std::result::Result<Vec<u8>, String> {
         unsafe {
-            let value = ffi_try!(crocksdb_compactionservice_result_encode(self.inner));
-            Ok(CStr::from_ptr(value).to_bytes().to_vec())
+            let mut val_len: size_t = 0;
+            let value_ptr = ffi_try!(crocksdb_compactionservice_result_encode(
+                self.inner,
+                &mut val_len
+            ));
+            let value: *const u8 = std::mem::transmute(value_ptr);
+            Ok(slice::from_raw_parts(value, val_len).to_vec())
         }
     }
 
@@ -247,11 +257,4 @@ impl CompactionServiceResult {
         }
         Ok(())
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use libc::c_uchar;
-    use std::ffi::CString;
-    use std::str;
 }

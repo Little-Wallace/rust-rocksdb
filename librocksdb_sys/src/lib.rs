@@ -1196,7 +1196,9 @@ extern "C" {
 
     pub fn crocksdb_compactionservice_input_get_cf_name(input: *mut DBCompactionServiceInput) -> *const u8;
 
-    pub fn crocksdb_compactionservice_input_encode(input: *mut DBCompactionServiceInput, err: *mut *mut c_char) -> *const c_char;
+    pub fn crocksdb_compactionservice_input_encode(input: *mut DBCompactionServiceInput,
+                                                   key_len: *mut size_t,
+                                                   err: *mut *mut c_char) -> *const c_char;
 
     pub fn crocksdb_compactionservice_input_decode(
         input: *mut DBCompactionServiceInput,
@@ -1210,7 +1212,8 @@ extern "C" {
 
     pub fn crocksdb_compactionservice_result_set_output_path(ret: *mut DBCompactionServiceResult, path: *const c_char);
 
-    pub fn crocksdb_compactionservice_result_encode(ret: *mut DBCompactionServiceResult, errptr: *mut *mut c_char) -> *const c_char;
+    pub fn crocksdb_compactionservice_result_encode(ret: *mut DBCompactionServiceResult,
+                                                    key_len: *mut size_t, errptr: *mut *mut c_char) -> *const c_char;
 
     // Iterator
     pub fn crocksdb_iter_destroy(iter: *mut DBIterator);
@@ -1231,13 +1234,13 @@ extern "C" {
         batch: *mut DBWriteBatch,
         err: *mut *mut c_char,
     );
-    pub fn crocksdb_write_multi_batch(
-        db: *mut DBInstance,
-        writeopts: *const DBWriteOptions,
-        batch: *const *mut DBWriteBatch,
-        batchlen: size_t,
-        err: *mut *mut c_char,
-    );
+    // pub fn crocksdb_write_multi_batch(
+    //     db: *mut DBInstance,
+    //     writeopts: *const DBWriteOptions,
+    //     batch: *const *mut DBWriteBatch,
+    //     batchlen: size_t,
+    //     err: *mut *mut c_char,
+    // );
 
     pub fn crocksdb_writebatch_create() -> *mut DBWriteBatch;
     pub fn crocksdb_writebatch_create_with_capacity(cap: size_t) -> *mut DBWriteBatch;

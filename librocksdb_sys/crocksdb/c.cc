@@ -3392,7 +3392,8 @@ void crocksdb_options_set_atomic_flush(crocksdb_options_t* opt,
   opt->rep.atomic_flush = enable;
 }
 
-void crocksdb_options_set_compaction_service(crocksdb_options_t* opt, crocksdb_compactionservice_t* service) {
+void crocksdb_options_set_compaction_service(
+    crocksdb_options_t* opt, crocksdb_compactionservice_t* service) {
   opt->rep.compaction_service = std::shared_ptr<CompactionService>(service);
 }
 
@@ -3797,9 +3798,11 @@ const char* crocksdb_compactionservice_input_get_cf_name(
 }
 
 const char* crocksdb_compactionservice_input_encode(
-    crocksdb_compactionservice_input_t* input, char** errptr) {
+    crocksdb_compactionservice_input_t* input, size_t* val_size,
+    char** errptr) {
   input->data.clear();
   SaveError(errptr, input->rep.Write(&input->data));
+  *val_size = input->data.length();
   return input->data.data();
 }
 
@@ -3827,9 +3830,10 @@ void crocksdb_compactionservice_result_set_output_path(
 }
 
 const char* crocksdb_compactionservice_result_encode(
-    crocksdb_compactionservice_result_t* ret, char** errptr) {
+    crocksdb_compactionservice_result_t* ret, size_t* val_size, char** errptr) {
   ret->data.clear();
   SaveError(errptr, ret->rep.Write(&ret->data));
+  *val_size = ret->data.length();
   return ret->data.data();
 }
 

@@ -1294,9 +1294,9 @@ impl DBOptions {
                 Ok(s) => s,
                 Err(e) => return Err(format!("failed to convert to cstring: {:?}", e)),
             };
-            let service = new_compaction_service(c_name, service);
-            crocksdb_ffi::crocksdb_options_set_compaction_service(self.inner, service.inner);
-            std::mem::forget(service); // Deconstructor will be called after `self` is dropped.
+            let service = new_compaction_service_raw(c_name, service);
+            crocksdb_ffi::crocksdb_options_set_compaction_service(self.inner, service);
+            // std::mem::forget(service); // Deconstructor will be called after `self` is dropped.
             Ok(())
         }
     }

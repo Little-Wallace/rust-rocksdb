@@ -791,24 +791,24 @@ impl DB {
         Ok(())
     }
 
-    pub fn multi_batch_write(
-        &self,
-        batches: &[WriteBatch],
-        writeopts: &WriteOptions,
-    ) -> Result<(), String> {
-        unsafe {
-            let b: Vec<*mut DBWriteBatch> = batches.iter().map(|w| w.inner).collect();
-            if !b.is_empty() {
-                ffi_try!(crocksdb_write_multi_batch(
-                    self.inner,
-                    writeopts.inner,
-                    b.as_ptr(),
-                    b.len()
-                ));
-            }
-        }
-        Ok(())
-    }
+    // pub fn multi_batch_write(
+    //     &self,
+    //     batches: &[WriteBatch],
+    //     writeopts: &WriteOptions,
+    // ) -> Result<(), String> {
+    //     unsafe {
+    //         let b: Vec<*mut DBWriteBatch> = batches.iter().map(|w| w.inner).collect();
+    //         if !b.is_empty() {
+    //             ffi_try!(crocksdb_write_multi_batch(
+    //                 self.inner,
+    //                 writeopts.inner,
+    //                 b.as_ptr(),
+    //                 b.len()
+    //             ));
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
     pub fn write(&self, batch: &WriteBatch) -> Result<(), String> {
         self.write_opt(batch, &WriteOptions::new())
@@ -2890,6 +2890,13 @@ mod test {
 
     use super::*;
     use crate::tempdir_with_prefix;
+    use remote_compaction_service::{
+        CompactionServiceJobInfo, CompactionServiceJobStatus, RemoteCompactionService,
+    };
+    use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::mpsc;
+    use std::time::Duration;
 
     #[test]
     fn external() {
@@ -3487,28 +3494,28 @@ mod test {
         assert!(mp.is_some());
     }
 
-    #[test]
-    fn test_multi_batch_write() {
-        let mut opts = DBOptions::new();
-        opts.create_if_missing(true);
-        opts.enable_multi_batch_write(true);
-        let path = tempdir_with_prefix("_rust_rocksdb_multi_batch");
-
-        let db = DB::open(opts, path.path().to_str().unwrap()).unwrap();
-        let cf = db.cf_handle("default").unwrap();
-        let mut data = Vec::new();
-        for s in &[b"ab", b"cd", b"ef"] {
-            let w = WriteBatch::new();
-            w.put_cf(cf, s.to_vec().as_slice(), b"a").unwrap();
-            data.push(w);
-        }
-        db.multi_batch_write(&data, &WriteOptions::new()).unwrap();
-        for s in &[b"ab", b"cd", b"ef"] {
-            let v = db.get_cf(cf, s.to_vec().as_slice()).unwrap();
-            assert!(v.is_some());
-            assert_eq!(v.unwrap().to_utf8().unwrap(), "a");
-        }
-    }
+    // #[test]
+    // fn test_multi_batch_write() {
+    //     let mut opts = DBOptions::new();
+    //     opts.create_if_missing(true);
+    //     opts.enable_multi_batch_write(true);
+    //     let path = tempdir_with_prefix("_rust_rocksdb_multi_batch");
+    //
+    //     let db = DB::open(opts, path.path().to_str().unwrap()).unwrap();
+    //     let cf = db.cf_handle("default").unwrap();
+    //     let mut data = Vec::new();
+    //     for s in &[b"ab", b"cd", b"ef"] {
+    //         let w = WriteBatch::new();
+    //         w.put_cf(cf, s.to_vec().as_slice(), b"a").unwrap();
+    //         data.push(w);
+    //     }
+    //     db.multi_batch_write(&data, &WriteOptions::new()).unwrap();
+    //     for s in &[b"ab", b"cd", b"ef"] {
+    //         let v = db.get_cf(cf, s.to_vec().as_slice()).unwrap();
+    //         assert!(v.is_some());
+    //         assert_eq!(v.unwrap().to_utf8().unwrap(), "a");
+    //     }
+    // }
 
     #[test]
     fn test_get_db_path_from_option() {
@@ -3716,5 +3723,188 @@ mod test {
         ingest_opt.move_files(true);
         db.ingest_external_file_cf(db.cf_handle("default").unwrap(), &ingest_opt, &[p1, p2])
             .unwrap();
+    }
+
+    struct LocalCompactContext {
+        callbacks: std::sync::Mutex<HashMap<String, mpsc::Receiver<CompactionServiceJobStatus>>>,
+        executed_task: AtomicUsize,
+        scheduled_task: AtomicUsize,
+    }
+
+    struct LocalCompactExecutor {
+        ctx: Arc<LocalCompactContext>,
+        opts: ColumnFamilyOptions,
+        env: Env,
+        path: String,
+        second_path: String,
+    }
+
+    struct LocalCompactService {
+        inner: Arc<LocalCompactContext>,
+        router: Option<mpsc::SyncSender<(Vec<u8>, mpsc::Sender<CompactionServiceJobStatus>)>>,
+        handle: Option<thread::JoinHandle<()>>,
+    }
+
+    impl LocalCompactContext {
+        pub fn new() -> Self {
+            Self {
+                callbacks: std::sync::Mutex::new(HashMap::new()),
+                executed_task: AtomicUsize::new(0),
+                scheduled_task: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl LocalCompactExecutor {
+        pub fn new(path: String, second_path: String, ctx: Arc<LocalCompactContext>) -> Self {
+            LocalCompactExecutor {
+                ctx,
+                opts: ColumnFamilyOptions::new(),
+                env: Env::default(),
+                path,
+                second_path,
+            }
+        }
+
+        pub fn execute(&self, data: Vec<u8>, sender: mpsc::Sender<CompactionServiceJobStatus>) {
+            let mut input = CompactionServiceInput::new();
+            input.decode(&data);
+            self.ctx.executed_task.fetch_add(1, Ordering::Relaxed);
+            let status = match DB::compact_without_install(
+                &self.opts,
+                &self.env,
+                &self.path,
+                &self.second_path,
+                &input,
+            ) {
+                Ok(ret) => match ret.encode() {
+                    Ok(v) => {
+                        println!("size: {}", v.len());
+                        CompactionServiceJobStatus::Success(v)
+                    }
+                    Err(e) => panic!("can not fail"),
+                },
+                Err(e) => panic!("can not fail because {}", e),
+            };
+            sender.send(status).unwrap();
+        }
+    }
+
+    impl LocalCompactService {
+        fn new(path: String, second_path: String) -> Self {
+            let ctx = Arc::new(LocalCompactContext::new());
+            let inner = ctx.clone();
+            let (router, receiver) = mpsc::sync_channel(10);
+            let handle = std::thread::spawn(move || {
+                let executor = LocalCompactExecutor::new(path, second_path, ctx);
+                while let Ok((data, cb)) = receiver.recv() {
+                    executor.execute(data, cb);
+                }
+            });
+            LocalCompactService {
+                inner,
+                router: Some(router),
+                handle: Some(handle),
+            }
+        }
+
+        pub fn get_context(&self) -> Arc<LocalCompactContext> {
+            self.inner.clone()
+        }
+    }
+
+    impl Drop for LocalCompactService {
+        fn drop(&mut self) {
+            self.router.take();
+            if let Some(handle) = self.handle.take() {
+                handle.join().unwrap();
+            }
+        }
+    }
+
+    impl RemoteCompactionService for LocalCompactService {
+        fn start(
+            &self,
+            info: &CompactionServiceJobInfo,
+            input: &[u8],
+        ) -> CompactionServiceJobStatus {
+            if let Some(router) = self.router.as_ref() {
+                self.inner.scheduled_task.fetch_add(1, Ordering::Relaxed);
+                let (tx, rc) = mpsc::channel();
+                if let Ok(_) = router.send((input.to_vec(), tx)) {
+                    self.inner
+                        .callbacks
+                        .lock()
+                        .unwrap()
+                        .insert(info.db_session_id.clone(), rc);
+                    return CompactionServiceJobStatus::Success(Vec::default());
+                }
+            }
+            CompactionServiceJobStatus::UseLocal
+        }
+
+        fn wait(&self, info: &CompactionServiceJobInfo) -> CompactionServiceJobStatus {
+            let rc = self
+                .inner
+                .callbacks
+                .lock()
+                .unwrap()
+                .remove(&info.db_session_id);
+            if let Some(recv) = rc {
+                match recv.recv() {
+                    Ok(ret) => ret,
+                    Err(e) => CompactionServiceJobStatus::UseLocal,
+                }
+            } else {
+                CompactionServiceJobStatus::UseLocal
+            }
+        }
+    }
+
+    #[test]
+    fn test_remote_compact() {
+        let path_dir = tempdir_with_prefix("_test_remote_compact");
+        let root_path = path_dir.path();
+        let db_path = root_path.join("db");
+        let remote_input_path = root_path.join("remote_input");
+        let remote_output_path = root_path.join("remote_output");
+        let db_str = db_path.to_str().unwrap();
+        let remote_input_str = remote_input_path.to_str().unwrap();
+        let remote_output_str = remote_output_path.to_str().unwrap();
+        let cfs = ["default"];
+        let mut opts = DBOptions::new();
+        let service = LocalCompactService::new(db_str.to_string(), remote_output_str.to_string());
+        let ctx = service.get_context();
+        opts.set_compaction_service("test", Box::new(service))
+            .unwrap();
+        opts.create_if_missing(true);
+        let cf_opts: Vec<(&str, ColumnFamilyOptions)> = cfs
+            .iter()
+            .map(|cf| {
+                let mut opt = ColumnFamilyOptions::new();
+                opt.set_force_consistency_checks(true);
+                opt.set_write_buffer_size(1024 * 1024);
+                opt.set_level_zero_file_num_compaction_trigger(2);
+                opt.set_max_bytes_for_level_base(2 * 1024 * 1024);
+                (*cf, opt)
+            })
+            .collect();
+        let db = DB::open_cf(opts, db_str, cf_opts).unwrap();
+        let wb = WriteBatch::with_capacity(4096);
+        let v = "##################-########################-########";
+        for i in 100..10000 {
+            wb.put(v.as_bytes(), v.as_bytes()).unwrap();
+            if i % 1000 == 100 {
+                db.write(&wb).unwrap();
+                wb.clear();
+            }
+            if i % 640 == 0 {
+                db.flush(true).unwrap();
+            }
+        }
+        db.flush(true).unwrap();
+        thread::sleep(Duration::from_secs(30));
+        assert!(ctx.scheduled_task.load(Ordering::Relaxed) > 0);
+        assert!(ctx.executed_task.load(Ordering::Relaxed) > 0);
     }
 }

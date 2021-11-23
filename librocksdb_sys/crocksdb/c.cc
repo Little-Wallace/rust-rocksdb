@@ -722,11 +722,9 @@ struct crocksdb_compactionservice_t : public CompactionService {
   CompactionServiceJobStatus StartV2(
       const CompactionServiceJobInfo& info,
       const std::string& compaction_service_input) override {
-    crocksdb_compactionservice_job_info_t* info_ptr =
-        new crocksdb_compactionservice_job_info_t(info);
-    int ret = (*start_)(state_, info_ptr, compaction_service_input.data(),
+    crocksdb_compactionservice_job_info_t cinfo(info);
+    int ret = (*start_)(state_, &cinfo, compaction_service_input.data(),
                         compaction_service_input.size());
-    delete info_ptr;
     if (ret == 0) {
       return CompactionServiceJobStatus::kSuccess;
     } else if (ret == 1) {
@@ -2330,6 +2328,12 @@ const char* crocksdb_externalfileingestioninfo_internal_file_path(
     const crocksdb_externalfileingestioninfo_t* info, size_t* size) {
   *size = info->rep.internal_file_path.size();
   return info->rep.internal_file_path.data();
+}
+
+const char* crocksdb_externalfileingestioninfo_external_file_path(
+    const crocksdb_externalfileingestioninfo_t* info, size_t* size) {
+  *size = info->rep.external_file_path.size();
+  return info->rep.external_file_path.data();
 }
 
 const crocksdb_table_properties_t*

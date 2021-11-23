@@ -185,7 +185,7 @@ impl CompactionServiceInput {
         }
     }
 
-    pub fn get_output_file(&self, idx: usize) -> std::result::Result<&str, String> {
+    pub fn get_file(&self, idx: usize) -> std::result::Result<&str, String> {
         unsafe {
             let f =
                 crocksdb_ffi::crocksdb_compactionservice_input_get_file(self.inner, idx as size_t);
@@ -193,14 +193,14 @@ impl CompactionServiceInput {
         }
     }
 
-    pub fn get_output_files_number(&self) -> usize {
+    pub fn get_files_size(&self) -> usize {
         unsafe {
             let n = crocksdb_ffi::crocksdb_compactionservice_input_get_files_size(self.inner);
             n as usize
         }
     }
 
-    pub fn set_output_files(&self, files: Vec<String>) {
+    pub fn set_files(&self, files: Vec<String>) {
         unsafe {
             crocksdb_ffi::crocksdb_compactionservice_input_clear_files(self.inner);
             for f in files {

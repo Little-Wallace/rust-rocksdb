@@ -1194,7 +1194,7 @@ extern "C" {
     pub fn crocksdb_compactionservice_input_clear_files(
     input: *mut DBCompactionServiceInput);
 
-    pub fn crocksdb_compactionservice_input_get_cf_name(input: *mut DBCompactionServiceInput) -> *const u8;
+    pub fn crocksdb_compactionservice_input_get_cf_name(input: *mut DBCompactionServiceInput) -> *const c_char;
 
     pub fn crocksdb_compactionservice_input_encode(input: *mut DBCompactionServiceInput,
                                                    key_len: *mut size_t,

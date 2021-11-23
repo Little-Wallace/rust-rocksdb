@@ -209,6 +209,14 @@ impl CompactionServiceInput {
             }
         }
     }
+
+    pub fn get_cf_name(&self) -> &str {
+        unsafe {
+            let raw_cf_name =
+                crocksdb_ffi::crocksdb_compactionservice_input_get_cf_name(self.inner);
+            CStr::from_ptr(raw_cf_name).to_str().unwrap()
+        }
+    }
 }
 
 impl Drop for CompactionServiceResult {

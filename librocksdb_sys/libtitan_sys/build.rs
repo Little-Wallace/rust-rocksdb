@@ -35,7 +35,7 @@ fn main() {
         .register_dep("ZSTD")
         .define("WITH_ZSTD", "ON")
         .register_dep("SNAPPY")
-        .define("WITH_SNAPPY", "ON")
+        .define("WITH_SNAPPY", "OFF")
         .define("WITH_TITAN_TESTS", "OFF")
         .define("WITH_TITAN_TOOLS", "OFF")
         .build_target("titan")

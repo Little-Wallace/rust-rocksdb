@@ -102,6 +102,7 @@ using rocksdb::FileLock;
 using rocksdb::FileOptions;
 using rocksdb::FilterBitsBuilder;
 using rocksdb::FilterBitsReader;
+using rocksdb::FilterBuildingContext;
 using rocksdb::FilterPolicy;
 using rocksdb::FlushJobInfo;
 using rocksdb::FlushOptions;
@@ -3675,8 +3676,9 @@ crocksdb_filterpolicy_t* crocksdb_filterpolicy_create_bloom_format(
     bool KeyMayMatch(const Slice& key, const Slice& filter) const override {
       return rep_->KeyMayMatch(key, filter);
     }
-    virtual FilterBitsBuilder* GetFilterBitsBuilder() const override {
-      return rep_->GetFilterBitsBuilder();
+    virtual FilterBitsBuilder* GetBuilderWithContext(
+        const FilterBuildingContext& context) const override {
+      return rep_->GetBuilderWithContext(context);
     }
     virtual FilterBitsReader* GetFilterBitsReader(
         const Slice& contents) const override {

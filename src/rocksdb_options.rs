@@ -1338,6 +1338,8 @@ impl Default for ColumnFamilyOptions {
     }
 }
 
+unsafe impl Send for ColumnFamilyOptions {}
+
 impl Clone for ColumnFamilyOptions {
     fn clone(&self) -> Self {
         assert!(self.filter.is_none());

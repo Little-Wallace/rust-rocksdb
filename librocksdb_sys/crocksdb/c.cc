@@ -3411,9 +3411,10 @@ unsigned char crocksdb_load_latest_options(
                                         &tmp_cf_descs, ignore_unknown_options);
 
   *errptr = nullptr;
-  if (s.IsNotFound()) return false;
   if (SaveError(errptr, s)) return false;
-
+  if (s.IsNotFound()) {
+    return false;
+  }
   *cf_descs_len = tmp_cf_descs.size();
   (*cf_descs) = (crocksdb_column_family_descriptor**)malloc(
       sizeof(crocksdb_column_family_descriptor*) * (*cf_descs_len));

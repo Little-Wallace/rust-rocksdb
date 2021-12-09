@@ -1165,12 +1165,11 @@ void crocksdb_write_multi_batch(crocksdb_t* db,
                                 const crocksdb_writeoptions_t* options,
                                 crocksdb_writebatch_t** batches,
                                 size_t batch_size, char** errptr) {
-  // std::vector<WriteBatch*> ws;
-  // for (size_t i = 0; i < batch_size; i++) {
-  //  ws.push_back(&batches[i]->rep);
-  // }
-  Status s = Status::Corruption("MultiBatchWrite not support");
-  SaveError(errptr, s);
+  std::vector<WriteBatch*> ws;
+  for (size_t i = 0; i < batch_size; i++) {
+    ws.push_back(&batches[i]->rep);
+  }
+  SaveError(errptr, db->rep->MultiBatchWrite(options->rep, std::move(ws)));
 }
 
 char* crocksdb_get(crocksdb_t* db, const crocksdb_readoptions_t* options,
@@ -3006,13 +3005,12 @@ void crocksdb_options_set_enable_pipelined_write(crocksdb_options_t* opt,
 
 void crocksdb_options_set_enable_multi_batch_write(crocksdb_options_t* opt,
                                                    unsigned char v) {
-  // opt->rep.enable_multi_thread_write = v;
+  opt->rep.enable_multi_thread_write = v;
 }
 
 unsigned char crocksdb_options_is_enable_multi_batch_write(
     crocksdb_options_t* opt) {
-  // return opt->rep.enable_multi_thread_write;
-  return false;
+  return opt->rep.enable_multi_thread_write;
 }
 
 void crocksdb_options_set_unordered_write(crocksdb_options_t* opt,

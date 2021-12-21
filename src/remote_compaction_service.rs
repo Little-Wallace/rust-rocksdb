@@ -25,6 +25,11 @@ pub struct CompactionServiceResult {
     pub(crate) inner: *mut crocksdb_ffi::DBCompactionServiceResult,
 }
 
+unsafe impl Send for CompactionServiceInput {}
+unsafe impl Sync for CompactionServiceInput {}
+unsafe impl Send for CompactionServiceResult {}
+unsafe impl Sync for CompactionServiceResult {}
+
 pub trait RemoteCompactionService: Sync + Send {
     fn start(&self, info: &CompactionServiceJobInfo, input: &[u8]) -> CompactionServiceJobStatus;
 

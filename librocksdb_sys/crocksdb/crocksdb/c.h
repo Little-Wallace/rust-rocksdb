@@ -2645,9 +2645,9 @@ extern C_ROCKSDB_LIBRARY_API void ctitandb_delete_blob_files_in_ranges_cf(
 /* WriteBufferManager */
 extern C_ROCKSDB_LIBRARY_API crocksdb_writebuffermanager_t* crocksdb_writebuffermanager_create(size_t buffer_size, crocksdb_cache_t *cache);
 
-extern C_ROCKSDB_LIBRARY_API bool crocksdb_writebuffermanager_enabled(const crocksdb_writebuffermanager_t* mgr);
+extern C_ROCKSDB_LIBRARY_API unsigned char crocksdb_writebuffermanager_enabled(const crocksdb_writebuffermanager_t* mgr);
 
-extern C_ROCKSDB_LIBRARY_API bool crocksdb_writebuffermanager_cost_to_cache(const crocksdb_writebuffermanager_t* mgr);
+extern C_ROCKSDB_LIBRARY_API unsigned char crocksdb_writebuffermanager_cost_to_cache(const crocksdb_writebuffermanager_t* mgr);
 
 extern C_ROCKSDB_LIBRARY_API size_t crocksdb_writebuffermanager_memory_usage(const crocksdb_writebuffermanager_t* mgr);
 

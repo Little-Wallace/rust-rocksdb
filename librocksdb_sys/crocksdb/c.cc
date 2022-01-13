@@ -1560,7 +1560,7 @@ const char* crocksdb_iter_value(const crocksdb_iterator_t* iter, size_t* vlen) {
   return s.data();
 }
 
-bool crocksdb_iter_seqno(const crocksdb_iterator_t* iter, SequenceNumber* no) {
+unsigned char crocksdb_iter_seqno(const crocksdb_iterator_t* iter, SequenceNumber* no) {
   return iter->rep->seqno(no);
 }
 
@@ -3319,11 +3319,11 @@ void crocksdb_options_set_writebuffermanager(crocksdb_options_t* opt, const croc
   opt->rep.write_buffer_manager = mgr->mgr;
 }
 
-bool crocksdb_writebuffermanager_enabled(const crocksdb_writebuffermanager_t* mgr) {
+unsigned char crocksdb_writebuffermanager_enabled(const crocksdb_writebuffermanager_t* mgr) {
   return mgr->mgr->enabled();
 }
 
-bool crocksdb_writebuffermanager_cost_to_cache(const crocksdb_writebuffermanager_t* mgr) {
+unsigned char crocksdb_writebuffermanager_cost_to_cache(const crocksdb_writebuffermanager_t* mgr) {
   return mgr->mgr->cost_to_cache();
 }
 
